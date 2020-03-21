@@ -1,14 +1,6 @@
 data Node = Node (Double,Double) [(Double, (Int,Int))] deriving Show
 data Net  = Net [[Node]] deriving Show
 
-test_net :: Net
-test_net = Net [ [Node (1,0) [(0.1 , (0,1)),(0.2,(1,0))] , Node (2,0) [(0.1,(0,0))] ],
-                          [Node (0,0) [(0.1 , (0,1))] , Node (0,0) [(0.1,(0,0))] ],
-                          [Node (0,0) [(0.1 , (0,0))] , Node (0,0) [(0.1,(0,0))] ]]
-
-test_net2 :: Net
-test_net2 = Net [ [ Node (0,2) [(0.1 , (0,0))] , Node (0,2) [(0.1,(0,0))] ] ]
-
 simple_net :: Net
 simple_net = Net [
                                 [ Node (10,0) [(0.1 , (0,0)), (0.1 , (1,0))] , Node (5,0) [(0.1,(0,1)),(0.1,(1,1))] ],
