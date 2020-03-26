@@ -34,7 +34,7 @@ n n n n n\
 o o o o o
 
 where i and o stand for the input and output neurons, which are allways active
-with 4 active neurons (which posses connections) might look like this:\
+with 4 active neurons (which posses connections) might look like this:
 
 i i i i i\
 a n a n n\
