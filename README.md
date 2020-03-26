@@ -42,11 +42,12 @@ n n n n a\
 n a n n m\
 o o o o o
 
-This would be a representation of a network generated with 4 neurons (nr_neuron)
-While generating a neural network every neurons will generate a random backward connection 
+This would be a representation of a network generated with 4 neurons (nr_neuron).
+
+While generating a neural network every neuron will generate a random backward connection 
 (a forward connection of a node from a previous layer) and (nr_con -1) forward connection,
 where the probability of a connction is chosen by the reciproc distance from the neurons 
 1/(distance between neurons).
 
 For example choosing between a possible connction A with distance 1/2 and and a possible connection B
-with distance 1 the ratio 2 to 1 (1/(1/2) to 1/1) will dertermine the probality for connection a to be 66%. 
+with distance 1 the ratio 2 to 1 (1/(1/2) to 1/1) will dertermine the probality for connection A to be 66%. 
