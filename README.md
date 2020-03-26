@@ -20,6 +20,7 @@ This command will generate a random neural_network with corresponding width and 
 (nr_con) number of connection (one connection will be connected backwards the rest forwards) 
 
 Detailed descricptions:
+
 All neurons of a layer can posses connections to random neurons of the following layers.
 The active used neurons in a random generated network will be choosen from
 a uniform distribution.
