@@ -48,5 +48,5 @@ While generating a neural network every neurons will generate a random backward 
 where the probability of a connction is chosen by the reciproc distance from the neurons 
 1/(distance between neurons).
 
-For example choosing between a possible connction a with distance 1/2 and and a possible connection b
+For example choosing between a possible connction A with distance 1/2 and and a possible connection B
 with distance 1 the ratio 2 to 1 (1/(1/2) to 1/1) will dertermine the probality for connection a to be 66%. 
