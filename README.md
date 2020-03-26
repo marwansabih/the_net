@@ -23,19 +23,23 @@ Detailed descricptions:
 All neurons of a layer can posses connections to random neurons of the following layers.
 The active used neurons in a random generated network will be choosen from
 a uniform distribution.
-For example a network 5x5
-i i i i i
-n n n n n
-n n n n n
-n n n n n
-o o o o o
+
+For example a network 5x5\
+i i i i i\
+n n n n n\
+n n n n n\
+n n n n n\
+o o o o o\
+
 where i and o stand for the input and output neurons, which are allways active
-with 4 active neurons (which posses connections) might look like this:
-i i i i i
-a n a n n
-n n n n a
-n a n n n
-o o o o o
+with 4 active neurons (which posses connections) might look like this:\
+
+i i i i i\
+a n a n n\
+n n n n a\
+n a n n m\
+o o o o o\
+
 This would be a representation of a network generated with 4 neurons (nr_neuron)
 While generating a neural network every neurons will generate a random backward connection 
 (a forward connection of a node from a previous layer) and (nr_con -1) forward connection,
