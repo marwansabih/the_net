@@ -1,3 +1,4 @@
+import           Control.Monad
 import           System.Random
 
 newRand = randomIO :: IO Int
@@ -26,7 +27,26 @@ generate_random_net2 width depth nr_neuron nr_con =
                                                                 let net = empty_net width depth
                                                                 nodes <- generate_random_nodes net nr_neuron
                                                                 design <- add_neighbours nodes nr_con
-                                                                return $ app_design net design
+                                                                let gen_net = app_design net design
+                                                                add_bias gen_net nodes
+
+add_bias :: Net2 Double -> [(Int,Int)] -> IO (Net2 Double)
+add_bias net nodes  = do
+                                        let ns = app2 net
+                                        let l = length ns
+                                        let filtered =filter(\(a,b)-> (a /= 0) && (b /= l-1)) nodes
+                                        ws <- randomList (length filtered)
+                                        let cons = zipWith(\w (a,b) -> (w,(a-1,b))) ws filtered
+                                        let n_h = Node2 1.0 cons
+                                        let n_ns = ( head ns ++ [n_h] ):(tail ns)
+                                        return $ Net2 n_ns
+
+randomList :: Int -> IO([Double])
+randomList 0 = return []
+randomList n = do
+                    r  <- randomRIO (-0.1::Double,0.1::Double)
+                    rs <- randomList (n-1)
+                    return (r:rs)
 
 generate_nodes :: Net2 a -> [(Int, Int)] -> [(Int,Int)]
 generate_nodes net pos =   f_pos ++ pos ++ l_pos
@@ -75,9 +95,6 @@ b_nodes (a,b) nodes = filter(\(c,d) -> c < a ) nodes
 taken :: [((Int,Int),[(Double,(Int,Int))])] -> (Int,Int) -> [(Int,Int)]
 taken (x:xs) (a,b) = if fst x == (a,b) then map(\(d,(c,e))-> (a+c+1,e)) (snd x) else taken xs (a,b)
 
-gen_design :: [(Int,Int)] -> Int -> IO [((Int,Int),[(Double,(Int,Int))])]
-gen_design  nodes nr_con = undefined
-                                        where ns = gen_nr_con nr_con $ length nodes
 
 gen_empty_design :: [(Int,Int)] -> [((Int,Int),[(Double,(Int,Int))])]
 gen_empty_design xs = map(\(a,b) -> ((a,b),[])) xs
@@ -114,7 +131,7 @@ draw_f_neighbour nodes n@(b,a) = let
                                                 is = to_interval 0 ds
                                                 in do
                                                         f <- randomRIO(0.0, last is)
-                                                        w <- randomRIO(0.0::Double,0.1::Double)
+                                                        w <- randomRIO(-0.1::Double,0.1::Double)
                                                         let idx = get_index f is 0
                                                         let m = maximum $ map(\(d,_) -> d) nodes
                                                         if m == b then
@@ -235,7 +252,7 @@ showNet net = putStrLn $ "Network\n" ++  ( concat ([ "[" ++ showNodes xs ++"] \n
 
 set_input :: Net -> [Double] -> Net
 set_input (Net (layer : layers)) input = Net $  n_layer : layers
-                                                where n_layer =  zipWith(\a (Node _ b) -> Node (a,0) b) input layer
+                                                where n_layer =  zipWith(\a (Node _ b) -> Node (a,0) b) (input++[1.0]) layer
 
 reset :: Net -> Net
 reset (Net layers) = Net $ map (map (\(Node _ b) -> Node (0,0) b)) layers
@@ -341,7 +358,7 @@ find_z layers (l,n)  = z
 
 
 train_data :: Net -> [[Double]] -> [[Double]] ->  Net
-train_data net input targets = foldr (\(i,t) net' -> train net' i t 0.5) net i_t
+train_data net input targets = foldr (\(i,t) net' -> train net' i t 0.01) net i_t
                                           where i_t = zip input targets
 
 output :: Net -> [Double] -> [Double]
@@ -350,11 +367,43 @@ output net input = map(\(Node (a,_) _) -> a) layer
                          r_net = reset net
                          f_net = f_propagate $set_input r_net input
                          layer = last $ app f_net
+
+find_best_random_net :: Int -> Int -> Int -> Int -> Int -> Int -> ([[Double]],[[Double]]) -> IO Net
+find_best_random_net nr_nets nr_steps width depth nr_neuron nr_con sample =
+     do
+         xs <- generate_random_net width depth nr_neuron nr_con
+         x <- sequ $replicate (nr_nets-1) $ generate_random_net width depth nr_neuron nr_con
+         let b_net = foldr (\x y -> compete x y nr_steps sample) xs x
+         return b_net
+
+sequ :: [IO a] -> IO [a]
+sequ [] = return []
+sequ (x:xs) = do
+                     n_x <-x
+                     n_xs <- sequ xs
+                     return (n_x:n_xs)
+
+compete :: Net -> Net -> Int -> ([[Double]],[[Double]]) -> Net
+compete net1 net2 nr_steps sample = if error1 < error2 then n_net1 else n_net2
+                                                    where
+                                                        inp = take nr_steps (fst sample)
+                                                        out = take nr_steps (snd sample)
+                                                        n_net1 = train_data net1 inp out
+                                                        n_net2 = train_data net2 inp out
+                                                        predi1 = map (output net1) inp
+                                                        predi2 = map (output net2) inp
+                                                        error1 = sum $ zipWith(\a b -> sum $ zipWith(\x y -> (x-y)^2) a b) predi1 out
+                                                        error2 = sum $ zipWith(\a b -> sum $ zipWith(\x y -> (x-y)^2) a b) predi2 out
+
+
 main::IO()
 main = do
           print $ let net = train_data simple_net (replicate 10000  [0.3,0.5]) (replicate 10000  [0.9, 0.275])
                   in output net [0.3,0.5]
           -- generate_random_net witdh depth nr_neuron nr_con
-          the_net <- generate_random_net 2 4 4 2
-          print $ let net = train_data the_net (replicate 10000  [0.3,0.5]) (replicate 10000  [0.9, 0.275])
-                  in output net [0.3,0.5]
+          the_net <- generate_random_net 2 4 4 3
+          -- find_best_random_net nr_nets nr_steps width depth nr_neuron nr_con sample
+          b_net <- find_best_random_net 1000 10000 2 4 4 3  (replicate 10000  [0.3,0.5],replicate 10000  [0.9, 0.275])
+          print $ output b_net [0.3,05]
+          print $ let b_net = train_data the_net (replicate 10000  [0.3,0.5]) (replicate 10000  [0.9, 0.275])
+                  in output b_net [0.3,0.5]
