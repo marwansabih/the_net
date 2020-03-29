@@ -1,0 +1,6 @@
+- Add fully connected Input Output 
+- Rewrite Code of Backprogation using Net2
+- Split code between files
+- Unit Tests
+- Add possibilty to clone Net and alter only a few Neurons
+- Add possibility to clone Net and alter a few connections

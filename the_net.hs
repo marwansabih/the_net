@@ -1,7 +1,20 @@
 import           Control.Monad
+import           Data.List.Split
 import           System.Random
 
-newRand = randomIO :: IO Int
+--ghc -O2 -o main.o the_net.hs -fprof-auto  -fprof-cafs -fforce-recomp
+
+dat :: IO ([[Double]],[[Double]])
+dat =  do
+           file <- readFile "nyc-east-river-bicycle-counts.csv"
+           let ls = tail $ lines file
+           let tokens = map (splitOn ",") ls
+           let num_str = map(\x -> snd (splitAt 3 x)) tokens
+           let pairs = map (splitAt 4) $ map (map(\a -> read a :: Double)) num_str
+           let normalized = map( \(a,b) -> ( norm_inp a, map(1.0/10000*) b)) pairs
+           return $ (\x -> (map fst x, map snd x)) normalized
+norm_inp :: [Double] -> [ Double]
+norm_inp inp = zipWith (\f a -> f a) [(1.0/100*),(1.0/100*), (1.0*), (1.0/10000*)] inp
 
 data Node = Node (Double,Double) [(Double, (Int,Int))] deriving Show
 data Net  = Net [[Node]] deriving Show
@@ -14,6 +27,17 @@ app2 (Net2 b) = b
 
 empty_net :: Int -> Int -> Net2 Double
 empty_net width depth = Net2 $ replicate depth  $  replicate width  ( Node2 0.0 [] )
+
+generate_fully_connected_net :: Int -> Int -> IO Net
+generate_fully_connected_net width depth =
+                                                do
+                                                    let net = empty_net width depth
+                                                    weights <- sequ $ map(sequ) $ replicate depth (replicate width (randomRIO(-0.1::Double,0.1::Double)))
+                                                    let next_layers = replicate depth  $zip (repeat (0::Int)) [0..(width-1)]
+                                                    let cons =  map (replicate (width)) $ zipWith (zip) weights next_layers
+                                                    let n_net = Net2 $ zipWith(\c d -> zipWith( \(Node2 a _ ) b -> Node2 a b) c d) (app2 net) cons
+                                                    r_net <- add_bias n_net [(a,b)| a <-[1..(depth-1)], b <-[0..(width-1)]  ]
+                                                    return $ convert_net2_net r_net
 
 generate_random_net::  Int -> Int -> Int -> Int -> IO Net
 generate_random_net width depth nr_neuron nr_con =
@@ -358,7 +382,7 @@ find_z layers (l,n)  = z
 
 
 train_data :: Net -> [[Double]] -> [[Double]] ->  Net
-train_data net input targets = foldr (\(i,t) net' -> train net' i t 0.01) net i_t
+train_data net input targets = foldr (\(i,t) net' -> train net' i t 0.0001) net i_t
                                           where i_t = zip input targets
 
 output :: Net -> [Double] -> [Double]
@@ -367,6 +391,14 @@ output net input = map(\(Node (a,_) _) -> a) layer
                          r_net = reset net
                          f_net = f_propagate $set_input r_net input
                          layer = last $ app f_net
+
+find_best_fully_connected_net :: Int -> Int -> Int -> Int -> ([[Double]],[[Double]]) -> IO Net
+find_best_fully_connected_net nr_nets nr_steps width depth sample =
+            do
+                xs <- generate_fully_connected_net width depth
+                x <- sequ $replicate (nr_nets-1) $ generate_fully_connected_net width depth
+                let b_net = foldr (\x y -> compete x y nr_steps sample) xs x
+                return b_net
 
 find_best_random_net :: Int -> Int -> Int -> Int -> Int -> Int -> ([[Double]],[[Double]]) -> IO Net
 find_best_random_net nr_nets nr_steps width depth nr_neuron nr_con sample =
@@ -384,26 +416,39 @@ sequ (x:xs) = do
                      return (n_x:n_xs)
 
 compete :: Net -> Net -> Int -> ([[Double]],[[Double]]) -> Net
-compete net1 net2 nr_steps sample = if error1 < error2 then n_net1 else n_net2
+compete net1 net2 nr_steps sample = if (error1 < error2) then n_net1 else  n_net2
                                                     where
                                                         inp = take nr_steps (fst sample)
                                                         out = take nr_steps (snd sample)
                                                         n_net1 = train_data net1 inp out
                                                         n_net2 = train_data net2 inp out
-                                                        predi1 = map (output net1) inp
-                                                        predi2 = map (output net2) inp
-                                                        error1 = sum $ zipWith(\a b -> sum $ zipWith(\x y -> (x-y)^2) a b) predi1 out
-                                                        error2 = sum $ zipWith(\a b -> sum $ zipWith(\x y -> (x-y)^2) a b) predi2 out
+                                                        predi1 = map (output n_net1) inp
+                                                        predi2 = map (output n_net2) inp
+                                                        err1 =  sum $ zipWith (\a b -> sum  $(zipWith( \x y -> (x-y)^2)) a b) predi1 out
+                                                        err2 =  sum $ zipWith (\a b -> sum  $(zipWith( \x y -> (x-y)^2)) a b) predi2 out
+                                                        infinity = (read "Infinity")::Double
+                                                        error1 = if isNaN err1 then infinity else err1
+                                                        error2 = if isNaN err2 then infinity else err2
 
 
 main::IO()
 main = do
-          print $ let net = train_data simple_net (replicate 10000  [0.3,0.5]) (replicate 10000  [0.9, 0.275])
-                  in output net [0.3,0.5]
+          (inp,outs) <- dat
+          let inputs = cycle inp
+          let outputs = cycle outs
+          bf_net <- find_best_fully_connected_net 500 500 4 30  (take 10000 inputs, take 10000 outputs)
+          putStrLn "Fully Connected Network"
+          putStrLn "Prediction:"
+          print $ let f_net = train_data bf_net (take 200000 inputs) (take 200000 outputs)
+                  in output f_net (inp !! 0)
+          putStrLn "Expected Output:"
+          print  $ outs !! 0
           -- generate_random_net witdh depth nr_neuron nr_con
-          the_net <- generate_random_net 2 4 4 3
-          -- find_best_random_net nr_nets nr_steps width depth nr_neuron nr_con sample
-          b_net <- find_best_random_net 1000 10000 2 4 4 3  (replicate 10000  [0.3,0.5],replicate 10000  [0.9, 0.275])
-          print $ output b_net [0.3,05]
-          print $ let b_net = train_data the_net (replicate 10000  [0.3,0.5]) (replicate 10000  [0.9, 0.275])
-                  in output b_net [0.3,0.5]
+          --find_best_random_net nr_nets nr_steps width depth nr_neuron nr_con sample
+          putStrLn "Random Generated Network"
+          putStrLn "Prediction:"
+          the_net <- find_best_random_net 500 500 4 120 80 8  (take 10000 inputs, take 10000 outputs)
+          print $ let b_net = train_data the_net (take 200000 inputs) (take 200000 outputs)
+             in output b_net (inp !! 0)
+          putStrLn "Expected Output:"
+          print  $ outs !! 0
