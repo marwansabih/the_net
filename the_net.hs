@@ -13,20 +13,50 @@ dat =  do
            let pairs = map (splitAt 4) $ map (map(\a -> read a :: Double)) num_str
            let normalized = map( \(a,b) -> ( norm_inp a, map(1.0/10000*) b)) pairs
            return $ (\x -> (map fst x, map snd x)) normalized
+
 norm_inp :: [Double] -> [ Double]
 norm_inp inp = zipWith (\f a -> f a) [(1.0/100*),(1.0/100*), (1.0*), (1.0/10000*)] inp
 
 data Node = Node (Double,Double) [(Double, (Int,Int))] deriving Show
-data Net  = Net [[Node]] deriving Show
+data Net  = Net [[Node]]
 
 data Node2 a = Node2 a [(Double, (Int,Int))]
 data Net2 a = Net2 [[Node2 a]]
 
+type Design = [((Int,Int),[(Double,(Int,Int))])]
+
+poss_twin :: Eq a => [a] -> Bool
+poss_twin []     = False
+poss_twin (x:xs) = if elem x xs then True else poss_twin xs
+
+check_entries :: Net -> String
+check_entries net = concatMap showlayer1 checks
+                        where
+                              checks = map ( map (\(Node _ ls) -> (poss_twin (map (\(a,b) -> b)  ls ) ) ) )  (app net)
+                              showlayer1 x = (concatMap (\a -> if a then "True\n" else "False\n")  x) ++"\n"
+
+instance Show Net where
+    show net = concatMap showlayer (app net)
+                                   where
+                                       nodeMap (Node x b) =  "N " ++ show x ++ " " ++ show (map snd b) ++ "\n"
+                                       showlayer x = (concatMap nodeMap x) ++ "\n"
+
 app2 :: Net2 a -> [[Node2 a]]
 app2 (Net2 b) = b
 
+
+
 empty_net :: Int -> Int -> Net2 Double
 empty_net width depth = Net2 $ replicate depth  $  replicate width  ( Node2 0.0 [] )
+
+
+net_to_design :: Net -> Design
+net_to_design  net = zipWith(\(Node _ ts) x -> (x,ts) ) (concat nodes) (concat ids)
+                where
+                    nodes = app net
+                    n = length nodes
+                    m = length (head nodes)
+                    ids = map( \x -> zip [0..(m-1)] (repeat x) ) [0..(n-1)]
 
 generate_fully_connected_net :: Int -> Int -> IO Net
 generate_fully_connected_net width depth =
@@ -58,7 +88,7 @@ add_bias :: Net2 Double -> [(Int,Int)] -> IO (Net2 Double)
 add_bias net nodes  = do
                                         let ns = app2 net
                                         let l = length ns
-                                        let filtered =filter(\(a,b)-> (a /= 0) && (b /= l-1)) nodes
+                                        let filtered =filter(\(a,b)-> (a /= 0) && (a /= l-1)) nodes
                                         ws <- randomList (length filtered)
                                         let cons = zipWith(\w (a,b) -> (w,(a-1,b))) ws filtered
                                         let n_h = Node2 1.0 cons
@@ -85,7 +115,7 @@ generate_random_nodes net nr = do
                                                       let
                                                          m = length $ head $ app2 net
                                                          n =  length $ app2 net
-                                                         list = concatMap (\n' ->  zip (replicate m n' ) [0..]) [1..n-1]
+                                                         list = concatMap (\n' ->  zip (replicate m n' ) [0..]) [1..n-2]
                                                          in do
                                                              (xs,_) <- draw_n_pos nr ([] , list)
                                                              return $ generate_nodes net xs
@@ -134,7 +164,7 @@ draw_f_neighbours [] nodes design n_cons = return design
 draw_f_neighbours (n:nodes) a_nodes design n_cons = do
                                                                 let f_n = f_nodes n a_nodes
                                                                 let t = taken design n
-                                                                let rest = filter (\z ->not (elem z t)) f_n
+                                                                let rest = filter (\z -> notElem z t) f_n
                                                                 x <- draw_many rest n (n_cons)
                                                                 let n_design = foldr (\z y -> to_design y z) design x
                                                                 draw_f_neighbours nodes a_nodes n_design n_cons
@@ -430,6 +460,12 @@ compete net1 net2 nr_steps sample = if (error1 < error2) then n_net1 else  n_net
                                                         error1 = if isNaN err1 then infinity else err1
                                                         error2 = if isNaN err2 then infinity else err2
 
+test2::IO()
+test2 = do
+    net <- generate_random_net 5 5 3 4
+    print net
+    putStrLn $ check_entries net
+    print $ net_to_design $ net
 
 main::IO()
 main = do
@@ -447,7 +483,7 @@ main = do
           --find_best_random_net nr_nets nr_steps width depth nr_neuron nr_con sample
           putStrLn "Random Generated Network"
           putStrLn "Prediction:"
-          the_net <- find_best_random_net 500 500 4 120 80 8  (take 10000 inputs, take 10000 outputs)
+          the_net <- find_best_random_net 500 500 4 180 120 8  (take 10000 inputs, take 10000 outputs)
           print $ let b_net = train_data the_net (take 200000 inputs) (take 200000 outputs)
              in output b_net (inp !! 0)
           putStrLn "Expected Output:"
