@@ -25,6 +25,158 @@ data Net2 a = Net2 [[Node2 a]]
 
 type Design = [((Int,Int),[(Double,(Int,Int))])]
 
+newtype DT a = D (Design -> (a, Design))
+
+appD :: DT a -> Design -> (a,Design)
+appD (D dt) x = dt x
+
+instance Functor DT where
+    --fmap :: (a->b) -> DT a -> DT b
+    fmap g st = D (\d -> let (x,d') = appD st d in (g x, d'))
+
+instance Applicative DT where
+    -- pure :: a -> ST a
+    pure x = D (\d -> (x,d))
+    -- (<*>) :: DT (a -> b) -> DT a -> DT b
+    stf <*> stx = D (\d ->
+                                let
+                                  (f, d')  = appD stf d
+                                  (x,d'') = appD stx d'
+                                 in ( f x, d''))
+
+instance Monad DT where
+    -- (>>=) :: DT a -> (a -> DT b) -> DT b
+    dt >>= f =  D (\d -> let (x,d') = appD dt d in appD (f x) d' )
+
+add_neuron_design :: Int -> (Int,Int) -> Design -> IO Design
+add_neuron_design n_cons pos dsgn = undefined
+
+d_f_nodes :: (Int,Int) -> Design -> [(Int,Int)]
+d_f_nodes pos design = f_nodes pos (map fst  design)
+
+reset_weights :: (Int,Int) -> Design -> IO Design
+reset_weights pos design = do
+                              let p_to = point_to pos design
+                              let p_at = point_at pos design
+                              g <- reset_b_weights pos p_to
+                              f <- reset_f_weights pos p_at
+                              let b_d = snd $ (appD g) design
+                              return $ snd $ (appD f) b_d
+
+
+reset_b_weights :: (Int,Int) -> [(Int,Int)] -> IO (DT [(Int,Int)])
+reset_b_weights pos p_to = reset_list pos (pure p_to) reset_b_weight
+
+reset_f_weights :: (Int,Int) -> [(Int,Int)] -> IO (DT [(Int,Int)])
+reset_f_weights pos p_at = reset_list pos (pure p_at) reset_f_weight
+
+reset_list :: (Int,Int) -> DT [(Int,Int)] -> ((Int,Int) -> Double -> [(Int,Int)] -> DT [(Int,Int)]) -> IO (DT [(Int,Int)])
+reset_list  pos dt f  = do
+                                w <- randomRIO(-0.1::Double,0.1::Double)
+                                let g = f pos w
+                                let dt' = dt >>= g
+                                if fst (appD dt' []) == []
+                                    then return dt'
+                                else reset_list pos dt' f
+
+reset_f_weight :: (Int,Int) -> Double -> [(Int,Int)] -> DT [(Int,Int)]
+reset_f_weight _ _ [] = D (\d -> ([],d))
+reset_f_weight (a,b) w ((x1,x2):xs) = D (\d -> (xs, add_to d ))
+                                where
+                                    replace [] = []
+                                    replace ((w',(k,l)):is) = if (x1-a-1,x2) == (k,l)
+                                                                          then (w,(k,l)) : replace is
+                                                                          else (w',(k,l)) : replace is
+                                    add_to [] = []
+                                    add_to (((c,d),ts):ds) = if (a,b) == (c,d)
+                                                                         then ((c,d), replace ts) : add_to ds
+                                                                         else ((c,d), ts) : add_to ds
+
+reset_b_weight :: (Int,Int) -> Double -> [(Int,Int)] -> DT [(Int,Int)]
+reset_b_weight _ _ [] = D (\d -> ([],d))
+reset_b_weight (a,b) w ((x1,x2):xs) = D (\d -> (xs, add_to d ))
+                                where
+                                    replace [] = []
+                                    replace ((w',(k,l)):is) = if (a-x1-1,b) == (k,l)
+                                                                          then (w,(k,l)) : replace is
+                                                                          else (w',(k,l)) : replace is
+                                    add_to [] = []
+                                    add_to (((c,d),ts):ds) = if (x1,x2) == (c,d)
+                                                                         then ((c,d), replace ts) : add_to ds
+                                                                         else ((c,d), ts) : add_to ds
+
+add_b_connection :: (Int,Int) -> Double -> [(Int,Int)] -> DT [(Int,Int)]
+add_b_connection _ _ [] = D (\d -> ([], d))
+add_b_connection pos@(a,b) w ((x1,x2):xs) = D (\d -> (xs, add_to d ))
+                                where
+                                    add_to [] = []
+                                    add_to (((c,d),ts):ds) = if (x1,x2) == (c,d)
+                                                                         then ((c,d), ((w,(a-c-1,b)):ts)) : (add_to ds)
+                                                                         else ((c,d),ts) : (add_to ds)
+
+add_f_connection :: (Int,Int) -> Double -> [(Int,Int)] ->  DT [(Int,Int)]
+add_f_connection (a,b) w [] = D (\d -> ([], d ))
+add_f_connection pos@(a,b) w ((x1,x2):xs) = D (\d -> (xs, add_to d ))
+                                    where
+                                        add_to [] = []
+                                        add_to (((c,d),ts):ds) = if (c,d) == (a,b)
+                                                                           then (pos, (w,(x1-a-1,x2)):ts) : ( add_to ds )
+                                                                           else ((c,d),ts) : ( add_to ds )
+
+
+
+remove_neuron:: (Int,Int) -> Design -> Design
+remove_neuron pos dsgn = map(\(a,b) -> if(a == pos) then (a,[]) else (a,b)) wp_dsgn
+              where
+                  p_to = point_to pos dsgn
+                  funcs = map (\x -> remove_entry_at x pos) p_to
+                  wp_dsgn = foldr (\f x -> f x) dsgn funcs
+
+remove_entry_at :: (Int,Int) -> (Int,Int) -> Design -> Design
+remove_entry_at key entry [] = []
+remove_entry_at (c,d) (e,f) ((a,ts):xs) = if a == (c,d) then (a, filter is_not_entry ts ): n_xs else (a,ts) : n_xs
+                                        where
+                                            is_not_entry (_,(y,z)) = (y,z) /= (e-c-1,f)
+                                            n_xs = remove_entry_at (c,d) (e,f) xs
+
+remove_able_nodes :: Design -> [(Int,Int)]
+remove_able_nodes dsgn = filter (\x-> is_remove_able x dsgn) $ full_nodes dsgn
+
+-- functions needs to take into account that the bias points to everything except the last layer
+-- but the bias should not be counted as "real" connection
+--the idea is after the removel of a node every node needs to have
+--an output-connection and an input connection.
+is_remove_able :: (Int,Int) -> Design -> Bool
+is_remove_able pos dsgn = and $ map (\x -> length x > 1) $ p_tos ++ p_ats
+                            where
+                                    bias_pos = last $ map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) dsgn
+                                    p_to = point_to pos dsgn
+                                    p_at = point_at pos dsgn
+                                    p_tos = map (\x -> point_at x dsgn) p_to
+                                    p_ats = map(\z -> filter(\y -> y /= bias_pos) z) $ map(\x -> point_to x dsgn)  p_at
+
+
+point_to ::  (Int,Int) -> Design -> [(Int,Int)]
+point_to (c,d) = map(fst) . filter (\((a,_),ts) -> elem (c-a-1,d)  (map(snd) ts) )
+
+point_at :: (Int,Int) -> Design -> [(Int,Int)]
+point_at (a,b) = (\(_,ts) -> map(\(w,(c,d)) -> (c+a+1,d) ) ts) . head . filter(\x -> (a,b) == (fst x))
+
+
+filter_nodes :: ( ((Int,Int),[(Double,(Int,Int))]) -> Bool )  ->Design -> [(Int,Int)]
+filter_nodes f dsgn  = map(fst) $ filter f  n_dsgn
+                where
+                    m = maximum $ map(\((a,b),_) -> a) dsgn
+                    n_dsgn = filter(\((a,b),_) -> a /= m && a /= 0) dsgn
+
+
+
+free_nodes :: Design -> [(Int,Int)]
+free_nodes = filter_nodes (null . snd)
+
+full_nodes :: Design -> [(Int,Int)]
+full_nodes = filter_nodes (not . null . snd)
+
 poss_twin :: Eq a => [a] -> Bool
 poss_twin []     = False
 poss_twin (x:xs) = if elem x xs then True else poss_twin xs
@@ -50,13 +202,15 @@ empty_net :: Int -> Int -> Net2 Double
 empty_net width depth = Net2 $ replicate depth  $  replicate width  ( Node2 0.0 [] )
 
 
+
 net_to_design :: Net -> Design
 net_to_design  net = zipWith(\(Node _ ts) x -> (x,ts) ) (concat nodes) (concat ids)
                 where
                     nodes = app net
                     n = length nodes
                     m = length (head nodes)
-                    ids = map( \x -> zip [0..(m-1)] (repeat x) ) [0..(n-1)]
+                    fst_layer = zip (repeat 0) [0..m-1]
+                    ids = fst_layer : ( map( \x -> zip (repeat x) [0..(m-2)] ) [1..(n-1)] )
 
 generate_fully_connected_net :: Int -> Int -> IO Net
 generate_fully_connected_net width depth =
@@ -412,7 +566,7 @@ find_z layers (l,n)  = z
 
 
 train_data :: Net -> [[Double]] -> [[Double]] ->  Net
-train_data net input targets = foldr (\(i,t) net' -> train net' i t 0.0001) net i_t
+train_data net input targets = foldr (\(i,t) net' -> train net' i t 0.01) net i_t
                                           where i_t = zip input targets
 
 output :: Net -> [Double] -> [Double]
@@ -467,15 +621,81 @@ test2 = do
     putStrLn $ check_entries net
     print $ net_to_design $ net
 
+test3::IO()
+test3 = do
+    net <- generate_random_net 5 5 3 4
+    print $ net
+    let design = net_to_design $ net
+    print $ free_nodes design
+    print $ full_nodes design
+    putStrLn "Point_to (4,3):"
+    print$ point_to (4,3) design
+    putStrLn "Point_at (0,1):"
+    print$ point_at (0,1) design
+    putStrLn "Point_at (4,1):"
+    print $ point_at (4,1) design
+
+test4:: IO()
+test4 = do
+                net <- generate_random_net 5 5 3 2
+                print net
+                let design = net_to_design net
+                let the_node = head $ full_nodes design
+                print the_node
+                print $ is_remove_able the_node design
+                print "Pointing to"
+                print $ point_to the_node design
+                print "Pointing to at"
+                let p_t = point_to the_node design
+                print $ map(\x -> point_at x design) p_t
+                print "Pointing at"
+                print $ point_at the_node design
+                print "Pointing at to"
+                let p_at = point_at the_node design
+                print $ map(\x -> point_to x design) p_at
+                let bias_pos = last $ map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) design
+                print "Bias"
+                print $ bias_pos
+                print "All removeable nodes:"
+                print $ remove_able_nodes design
+
+test5:: IO()
+test5 = do
+        let design = [ ((0,0),[(0.1,(0,1))]), ((0,1),[(0.1,(0,1))]), ((0,2),[(0.1,(0,2)),(0.2,(0,1))]), ((1,1),[(0.3,(3,4))]),((1,2),[(0.3,(3,4))])]
+        print $ design
+        print $ remove_entry_at (0,2) (1,1) design
+        print $ remove_neuron (1,1) design
+        print $ remove_neuron (1,2) design
+
+--testing the monad :)
+test6 = do
+    let design = [ ((0,0),[(0.1,(0,1))]), ((0,1),[(0.2,(0,4)),(0.1,(0,1))]), ((0,2),[(0.1,(0,2)),(0.2,(0,1))]), ((1,1),[(0.3,(3,4))]),((1,2),[(0.3,(3,4))])]
+    let f = appD $ pure [(2,3),(4,5)] >>= add_f_connection (1,1) 0.5 >>= add_f_connection (1,1) 0.8
+    print $ f design
+    let g = appD $ pure [(0,1),(0,2)] >>= add_b_connection (1,1) 0.3 >>= add_b_connection (1,1) 0.7
+    print $ g design
+    let h = appD $ pure [(0,1),(0,2),(0,2)] >>= reset_b_weight (1,1) 11.0 >>= reset_b_weight (1,1) 17.0 >>= reset_b_weight (1,2) 18
+    print $ h design
+    let i = appD $ pure [(1,1),(1,1),(1,1)] >>= reset_f_weight (0,1) 11.0 >>= reset_f_weight (0,2) 17.0
+    print $ i design
+--testing more of the monad
+test7 = do
+    let design = [ ((0,0),[(0.1,(0,1))]), ((0,1),[(0.2,(0,4)),(0.1,(0,1))]), ((0,2),[(0.1,(0,2)),(0.2,(0,1))]), ((1,1),[(0.3,(3,4))]),((1,2),[(0.3,(3,4))])]
+    g <- reset_f_weights (0,1) [(1,4),(1,1)]
+    print $ (appD g) design
+    h <- reset_b_weights (1,1) [(0,1),(0,2)]
+    print $ (appD h) design
+    n_des <- reset_weights (1,1) design
+    print n_des
 main::IO()
 main = do
           (inp,outs) <- dat
           let inputs = cycle inp
           let outputs = cycle outs
-          bf_net <- find_best_fully_connected_net 500 500 4 30  (take 10000 inputs, take 10000 outputs)
+          bf_net <- find_best_fully_connected_net 250 250 4 30  (take 10000 inputs, take 10000 outputs)
           putStrLn "Fully Connected Network"
           putStrLn "Prediction:"
-          print $ let f_net = train_data bf_net (take 200000 inputs) (take 200000 outputs)
+          print $ let f_net = train_data bf_net (take 150000 inputs) (take 150000 outputs)
                   in output f_net (inp !! 0)
           putStrLn "Expected Output:"
           print  $ outs !! 0
@@ -483,8 +703,8 @@ main = do
           --find_best_random_net nr_nets nr_steps width depth nr_neuron nr_con sample
           putStrLn "Random Generated Network"
           putStrLn "Prediction:"
-          the_net <- find_best_random_net 500 500 4 180 120 8  (take 10000 inputs, take 10000 outputs)
-          print $ let b_net = train_data the_net (take 200000 inputs) (take 200000 outputs)
+          the_net <- find_best_random_net 250 250 4 180 120 8  (take 10000 inputs, take 10000 outputs)
+          print $ let b_net = train_data the_net (take 150000 inputs) (take 150000 outputs)
              in output b_net (inp !! 0)
           putStrLn "Expected Output:"
           print  $ outs !! 0
