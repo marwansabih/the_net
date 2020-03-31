@@ -51,8 +51,25 @@ instance Monad DT where
 add_neuron_design :: Int -> (Int,Int) -> Design -> IO Design
 add_neuron_design n_cons pos dsgn = undefined
 
+draw_from_list :: Int -> (Int,Int)-> ([(Int,Int)],[(Int,Int)]) -> IO ([(Int,Int)], [(Int,Int)])
+draw_from_list 0 _ xs = return xs
+draw_from_list n_cons pos nodes@(x,y) = do
+                                                            let ds = map (distance pos) (snd nodes)
+                                                            let is = to_interval 0 ds
+                                                            f <- randomRIO(0.0, last is)
+                                                            let idx = get_index f is 0
+                                                            let (xs,y:ys) = splitAt idx (snd nodes)
+                                                            draw_from_list (n_cons-1) pos (y:x, xs ++ ys)
+
+
 d_f_nodes :: (Int,Int) -> Design -> [(Int,Int)]
 d_f_nodes pos design = f_nodes pos (map fst  design)
+
+d_b_nodes :: (Int,Int) -> Design -> [(Int,Int)]
+d_b_nodes pos design = filter(\x -> x /= (0,m)) b_ns
+           where
+               b_ns = b_nodes pos (map fst design)
+               m =  maximum $ map(snd) $ filter(\(a,_) -> a == 0) b_ns
 
 reset_weights :: (Int,Int) -> Design -> IO Design
 reset_weights pos design = do
@@ -687,6 +704,13 @@ test7 = do
     print $ (appD h) design
     n_des <- reset_weights (1,1) design
     print n_des
+
+test8 = do
+     drawn <- draw_from_list 3 (0,0) ([],[(9,0),(100,100),(3,3),(5,5),(1,1),(1,3)])
+     print drawn
+     let design = [ ((0,0),[(0.1,(0,1))]), ((0,1),[(0.2,(0,4)),(0.1,(0,1))]), ((0,2),[(0.1,(0,2)),(0.2,(0,1))]), ((1,1),[(0.3,(3,4))]),((1,2),[(0.3,(3,4))])]
+     print $  d_b_nodes (1,1) design
+
 main::IO()
 main = do
           (inp,outs) <- dat
