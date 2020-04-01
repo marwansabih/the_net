@@ -1,4 +1,5 @@
 import           Control.Monad
+import           Data.List
 import           Data.List.Split
 import           System.Random
 
@@ -48,8 +49,66 @@ instance Monad DT where
     -- (>>=) :: DT a -> (a -> DT b) -> DT b
     dt >>= f =  D (\d -> let (x,d') = appD dt d in appD (f x) d' )
 
+alter_neuron :: Int -> Net ->IO (Net,Net)
+alter_neuron nr_cons net = do
+                            let org_design = net_to_design net
+                            let fu_ns = remove_able_nodes org_design --full_nodes org_design
+                            let fr_ns = free_nodes org_design
+                            to_delete <- draw_uniform 1 fu_ns
+                            to_create <- draw_uniform (length to_delete) fr_ns
+                            reset_design <- do_all to_delete org_design reset_weights
+                            d_design <- do_all to_delete org_design (to_IO remove_neuron)
+                            altered_design <- do_all to_create d_design (add_neuron_design nr_cons)
+                            return (design_to_net reset_design, design_to_net altered_design)
+
+design_to_net :: Design -> Net
+design_to_net design = Net $ map(map(\(_,ts) -> Node (0.0,0.0) ts )) layers
+                            where layers = to_layers 0 design []
+
+to_layers :: Int -> Design -> [Design] -> [Design]
+to_layers _ [] result = result
+to_layers nr design layers = to_layers (nr+1) n_design n_layers
+                                    where
+                                        n_design = filter(\((a,_),_)-> a /= nr) design
+                                        n_layer = filter(\((a,_),_)-> a == nr) design
+                                        o_layer = sort n_layer
+                                        n_layers = layers ++ [o_layer]
+
+to_IO :: ((Int,Int) -> Design -> Design) -> ((Int,Int) -> Design -> IO Design)
+to_IO f = (\x y -> return (f x y))
+
+do_all :: [(Int,Int)] -> Design -> ((Int,Int) -> Design -> IO Design) -> IO Design
+do_all [] design _ = return design
+do_all (x:xs) design f = do
+                                        n_d <- f x design
+                                        do_all xs n_d f
+
+draw_uniform :: Int ->[(Int,Int)] -> IO [(Int,Int)]
+draw_uniform nr list = do
+                                        (found,left) <- draw_uniform' nr ([],list)
+                                        return found
+
+draw_uniform' :: Int -> ([(Int,Int)],[(Int,Int)]) -> IO ([(Int,Int)],[(Int,Int)])
+draw_uniform' 0 res = return res
+draw_uniform' _ res@(_,[]) = return res
+draw_uniform' nr (found,left) = do
+                                                      k <-randomRIO(0,(length left)-1)
+                                                      let (xs,y:ys) = splitAt k left
+                                                      draw_uniform' (nr-1) (y:found,xs++ys)
+
+
 add_neuron_design :: Int -> (Int,Int) -> Design -> IO Design
-add_neuron_design n_cons pos dsgn = undefined
+add_neuron_design n_cons pos design = do
+                                                                    let (bias,b_ns) = full_d_b_nodes pos design
+                                                                    let f_ns = full_d_f_nodes pos design
+                                                                    bs <- draw_from_list 1 pos ([],b_ns)
+                                                                    fs <- draw_from_list (n_cons-1) pos ([],f_ns)
+                                                                    f <- connect_b pos $ fst bs
+                                                                    g <- connect_f pos $ fst fs
+                                                                    h <- connect_f bias [pos]
+                                                                    let b_d = snd $ (appD g) design
+                                                                    let n_d =  snd $ (appD f) b_d
+                                                                    return $ snd $ (appD h) n_d
 
 draw_from_list :: Int -> (Int,Int)-> ([(Int,Int)],[(Int,Int)]) -> IO ([(Int,Int)], [(Int,Int)])
 draw_from_list 0 _ xs = return xs
@@ -61,15 +120,39 @@ draw_from_list n_cons pos nodes@(x,y) = do
                                                             let (xs,y:ys) = splitAt idx (snd nodes)
                                                             draw_from_list (n_cons-1) pos (y:x, xs ++ ys)
 
+connect_f :: (Int,Int) -> [(Int,Int)] -> IO (DT [(Int,Int)])
+connect_f pos fs = reset_list pos (pure fs) add_f_connection
+
+connect_b :: (Int,Int) -> [(Int,Int)] -> IO (DT [(Int,Int)])
+connect_b pos fs = reset_list pos (pure fs) add_b_connection
+
+full_d_f_nodes :: (Int,Int) -> Design -> [(Int,Int)]
+full_d_f_nodes pos design = l_l ++ (filter (\x -> elem x fu_ns) f_ns)
+    where
+        f_ns = f_nodes pos (map fst design)
+        fu_ns = full_nodes design
+        m =  maximum $ map fst f_ns
+        l_l = filter(\(a,b) -> a == m) f_ns
 
 d_f_nodes :: (Int,Int) -> Design -> [(Int,Int)]
 d_f_nodes pos design = f_nodes pos (map fst  design)
 
-d_b_nodes :: (Int,Int) -> Design -> [(Int,Int)]
-d_b_nodes pos design = filter(\x -> x /= (0,m)) b_ns
+full_d_b_nodes :: (Int,Int) -> Design -> ((Int,Int),[(Int,Int)])
+full_d_b_nodes pos design = ((0,m),result)
            where
                b_ns = b_nodes pos (map fst design)
-               m =  maximum $ map(snd) $ filter(\(a,_) -> a == 0) b_ns
+               f_ns = full_nodes design
+               m =  maximum $ map snd $ filter(\(a,_) -> a == 0) b_ns
+               f_l = filter(\x@(a,b) -> x /= (0,m) && a == 0) b_ns
+               result = f_l ++ (filter (\x -> elem x f_ns) b_ns)
+
+
+
+d_b_nodes :: (Int,Int) -> Design -> ((Int,Int),[(Int,Int)])
+d_b_nodes pos design = ((0,m),filter(\x -> x /= (0,m)) b_ns)
+           where
+               b_ns = b_nodes pos (map fst design)
+               m =  maximum $ map snd $ filter(\(a,_) -> a == 0) b_ns
 
 reset_weights :: (Int,Int) -> Design -> IO Design
 reset_weights pos design = do
@@ -710,6 +793,32 @@ test8 = do
      print drawn
      let design = [ ((0,0),[(0.1,(0,1))]), ((0,1),[(0.2,(0,4)),(0.1,(0,1))]), ((0,2),[(0.1,(0,2)),(0.2,(0,1))]), ((1,1),[(0.3,(3,4))]),((1,2),[(0.3,(3,4))])]
      print $  d_b_nodes (1,1) design
+
+test9 = do
+    let design = [((0,0),[]),((0,1),[]),((0,2),[]),((0,3),[]),((0,4),[]),
+                         ((1,0),[]), ((1,1),[]),((1,2),[]),((1,3),[]),((1,4),[]),
+                         ((2,0),[]),((2,1),[]),((2,2),[]),((2,3),[]),((2,4),[]),
+                         ((3,0),[]),((3,1),[]),((3,2),[]),((3,3),[]),((3,4),[])]
+    d <- add_neuron_design 3 (1,1) design
+    print d
+    print "Testing to layers"
+    let layers = to_layers 0 design []
+    print layers
+    print "Testing desing to net"
+    print $ design_to_net d
+    print "Testing altering neurons!"
+    print "Will not be altered since no removeable neurons"
+    (net1,net2) <- alter_neuron 3 (design_to_net d)
+    print net1
+    print net2
+    let design2 = [((0,0),[(0.1,(0,0)),(0.2,(0,1))]),((0,1),[]),((0,2),[]),((0,3),[]),((0,4),[(0.1,(0,0)),(0.2,(0,1))]),
+                         ((1,0),[(0.1,(1,0))]), ((1,1),[(0.1,(1,0))]),((1,2),[]),((1,3),[]),((1,4),[]),
+                         ((2,0),[]),((2,1),[]),((2,2),[]),((2,3),[]),((2,4),[]),
+                         ((3,0),[]),((3,1),[]),((3,2),[]),((3,3),[]),((3,4),[])]
+    (net1',net2') <- alter_neuron 3 (design_to_net design2)
+    print "should be altered"
+    print net1'
+    print net2'
 
 main::IO()
 main = do
