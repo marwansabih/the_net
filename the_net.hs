@@ -49,17 +49,34 @@ instance Monad DT where
     -- (>>=) :: DT a -> (a -> DT b) -> DT b
     dt >>= f =  D (\d -> let (x,d') = appD dt d in appD (f x) d' )
 
-alter_neuron :: Int -> Net ->IO (Net,Net)
-alter_neuron nr_cons net = do
-                            let org_design = net_to_design net
-                            let fu_ns = remove_able_nodes org_design --full_nodes org_design
-                            let fr_ns = free_nodes org_design
-                            to_delete <- draw_uniform 1 fu_ns
+alter_neurons:: Int -> Int -> Net -> IO (Net,Net)
+alter_neurons nr_neuron nr_cons net = alter_neurons' nr_neuron nr_cons (net,net)
+
+alter_neurons' :: Int -> Int -> (Net,Net) -> IO (Net,Net)
+alter_neurons' 0 nr_cons nets = return nets
+alter_neurons' nr_neuron nr_cons (net1,net2) = do
+                                                (n_net1,n_net2) <-  alter_neuron nr_cons (net1,net2)
+                                                alter_neurons' (nr_neuron-1) nr_cons(n_net1,n_net2)
+
+alter_neuron :: Int -> (Net,Net) ->IO (Net,Net)
+alter_neuron nr_cons (net1,net2) = do
+                            let org_design1 = net_to_design net1
+                            let org_design2 = net_to_design net2
+                            let rm_ns1 = remove_able_nodes org_design1
+                            let rm_ns2 = remove_able_nodes org_design2
+                            let rm_ns = intersection rm_ns1 rm_ns2
+                            let fr_ns1 = free_nodes org_design1
+                            let fr_ns2 = free_nodes org_design2
+                            let fr_ns = intersection fr_ns1 fr_ns2
+                            to_delete <- draw_uniform 1 rm_ns
                             to_create <- draw_uniform (length to_delete) fr_ns
-                            reset_design <- do_all to_delete org_design reset_weights
-                            d_design <- do_all to_delete org_design (to_IO remove_neuron)
+                            reset_design <- do_all to_delete org_design1 reset_weights
+                            d_design <- do_all to_delete org_design2 (to_IO remove_neuron)
                             altered_design <- do_all to_create d_design (add_neuron_design nr_cons)
                             return (design_to_net reset_design, design_to_net altered_design)
+
+intersection :: [(Int,Int)] -> [(Int,Int)] -> [(Int,Int)]
+intersection xs ys = filter(\x -> elem x xs) ys
 
 design_to_net :: Design -> Net
 design_to_net design = Net $ map(map(\(_,ts) -> Node (0.0,0.0) ts )) layers
@@ -808,17 +825,21 @@ test9 = do
     print $ design_to_net d
     print "Testing altering neurons!"
     print "Will not be altered since no removeable neurons"
-    (net1,net2) <- alter_neuron 3 (design_to_net d)
+    (net1,net2) <- alter_neurons 1 3 (design_to_net d)
     print net1
     print net2
-    let design2 = [((0,0),[(0.1,(0,0)),(0.2,(0,1))]),((0,1),[]),((0,2),[]),((0,3),[]),((0,4),[(0.1,(0,0)),(0.2,(0,1))]),
-                         ((1,0),[(0.1,(1,0))]), ((1,1),[(0.1,(1,0))]),((1,2),[]),((1,3),[]),((1,4),[]),
+    let design2 = [((0,0),[(0.1,(0,0)),(0.2,(0,1))]),((0,1),[]),((0,2),[]),((0,3),[(0.1,(0,0)),(0.1,(0,1)),(0.1,(0,2))]),((0,4),[(0.1,(0,0)),(0.2,(0,1))]),
+                         ((1,0),[(0.1,(1,0))]), ((1,1),[(0.1,(1,0))]),((1,2),[(0.1,(1,0))]),((1,3),[]),((1,4),[]),
                          ((2,0),[]),((2,1),[]),((2,2),[]),((2,3),[]),((2,4),[]),
                          ((3,0),[]),((3,1),[]),((3,2),[]),((3,3),[]),((3,4),[])]
-    (net1',net2') <- alter_neuron 3 (design_to_net design2)
+    (net1',net2') <- alter_neurons 1 3 (design_to_net design2)
     print "should be altered"
     print net1'
     print net2'
+    print "should be altered two ways"
+    (net1'',net2'') <- alter_neurons 2 3 (design_to_net design2)
+    print net1''
+    print net2''
 
 main::IO()
 main = do
