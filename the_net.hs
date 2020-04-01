@@ -709,6 +709,21 @@ find_best_random_net nr_nets nr_steps width depth nr_neuron nr_con sample =
          let b_net = foldr (\x y -> compete x y nr_steps sample) xs x
          return b_net
 
+update_random_net :: Int -> Int -> Int -> Int -> ([[Double]],[[Double]]) -> Net -> IO Net
+update_random_net 0 _ _ _ _ net = return net
+update_random_net nr_times nr_steps nr_alt_neuron nr_con sample net  = do
+                                                            n_net <-  update_random_net' nr_steps nr_alt_neuron nr_con sample net
+                                                            update_random_net (nr_times-1) nr_steps nr_alt_neuron nr_con sample n_net
+
+update_random_net' :: Int -> Int -> Int -> ([[Double]],[[Double]]) -> Net -> IO Net
+update_random_net' nr_steps nr_alt_neuron nr_con sample net  = do
+                                                              (net1,net2) <- alter_neurons nr_alt_neuron nr_con net
+                                                              return $compete net1 net2 nr_steps sample
+
+
+
+
+
 sequ :: [IO a] -> IO [a]
 sequ [] = return []
 sequ (x:xs) = do
@@ -858,7 +873,11 @@ main = do
           putStrLn "Random Generated Network"
           putStrLn "Prediction:"
           the_net <- find_best_random_net 250 250 4 180 120 8  (take 10000 inputs, take 10000 outputs)
-          print $ let b_net = train_data the_net (take 150000 inputs) (take 150000 outputs)
-             in output b_net (inp !! 0)
+          --train and update net, while altering neurons
+          --update_random_net nr_times nr_steps nr_alt_neuron nr_con sample net
+          b_net <- update_random_net 150 1000 10 8 (take 10000 inputs, take 10000 outputs) the_net
+          print $ output b_net (inp !! 0)
+          --print $ let b_net = train_data the_net (take 150000 inputs) (take 150000 outputs)
+          -- in output b_net (inp !! 0)
           putStrLn "Expected Output:"
           print  $ outs !! 0
