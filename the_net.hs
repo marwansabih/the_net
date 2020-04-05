@@ -6,13 +6,21 @@ import           System.Random
 
 --ghc -O2 -o main.o the_net.hs -fprof-auto  -fprof-cafs -fforce-recomp
 
+--using Box-Muller for generation of normal distribution
+normal :: IO Double
+normal = do
+                d1 <- randomRIO(0::Double, 1::Double)
+                d2 <- randomRIO(0::Double, 1::Double)
+                let z = sqrt(-2.0 * (log d1)) * cos ( 2*pi*d2 )
+                return $ 0.1 * z
+
 dat :: IO ([[Double]],[[Double]])
 dat =  do
            file <- readFile "nyc-east-river-bicycle-counts.csv"
            let ls = tail $ lines file
            let tokens = map (splitOn ",") ls
            let num_str = map(\x -> snd (splitAt 3 x)) tokens
-           let pairs = map (splitAt 4) $ map (map(\a -> read a :: Double)) num_str
+           let pairs = map (splitAt 7) $ map (map(\a -> read a :: Double)) num_str
            let normalized = map( \(a,b) -> ( norm_inp a, map(1.0/10000*) b)) pairs
            return $ (\x -> (map fst x, map snd x)) normalized
 
@@ -26,7 +34,7 @@ pimp_dat n_len (inp,out) = (pimp inp, pimp out)
                                             pimp = map(\x -> front ++ x ++ back)
 
 norm_inp :: [Double] -> [ Double]
-norm_inp inp = zipWith (\f a -> f a) [(1.0/100*),(1.0/100*), (1.0*), (1.0/10000*)] inp
+norm_inp inp = zipWith (\f a -> f a) [(1.0/100*),(1.0/100*), (1.0*), (1.0/10000*),(1.0/10000*),(1.0/10000*),(1.0/10000*)] inp
 
 data Node = Node (Double,Double) [(Double, (Int,Int))] deriving Show
 data Net  = Net [[Node]]
@@ -202,7 +210,7 @@ reset_f_weights pos p_at = reset_list pos (pure p_at) reset_f_weight
 
 reset_list :: (Int,Int) -> DT [(Int,Int)] -> ((Int,Int) -> Double -> [(Int,Int)] -> DT [(Int,Int)]) -> IO (DT [(Int,Int)])
 reset_list  pos dt f  = do
-                                w <- randomRIO(-0.1::Double,0.1::Double)
+                                w <- normal
                                 let g = f pos w
                                 let dt' = dt >>= g
                                 if fst (appD dt' []) == []
@@ -346,7 +354,7 @@ generate_fully_connected_net :: Int -> Int -> IO Net
 generate_fully_connected_net width depth =
                                                 do
                                                     let net = empty_net width depth
-                                                    weights <- sequ $ map(sequ) $ replicate depth (replicate width (randomRIO(-0.1::Double,0.1::Double)))
+                                                    weights <- sequ $ map(sequ) $ replicate depth (replicate width (normal))
                                                     let next_layers = replicate depth  $zip (repeat (0::Int)) [0..(width-1)]
                                                     let cons =  map (replicate (width)) $ zipWith (zip) weights next_layers
                                                     let n_net = Net2 $ zipWith(\c d -> zipWith( \(Node2 a _ ) b -> Node2 a b) c d) (app2 net) cons
@@ -383,7 +391,7 @@ add_bias net nodes  = do
 randomList :: Int -> IO([Double])
 randomList 0 = return []
 randomList n = do
-                    r  <- randomRIO (-0.1::Double,0.1::Double)
+                    r  <- normal
                     rs <- randomList (n-1)
                     return (r:rs)
 
@@ -471,7 +479,7 @@ draw_f_neighbour nodes n@(b,a) = let
                                                 is = to_interval 0 ds
                                                 in do
                                                         f <- randomRIO(0.0, last is)
-                                                        w <- randomRIO(-0.1::Double,0.1::Double)
+                                                        w <- normal
                                                         let idx = get_index f is 0
                                                         let m = maximum $ map(\(d,_) -> d) nodes
                                                         if m == b then
@@ -504,7 +512,7 @@ draw_b_neighbour nodes n = let
                                                     is = to_interval 0 ds
                                                     in do
                                                         f <- randomRIO(0.0, last is)
-                                                        w <- randomRIO(0.0::Double,0.1::Double)
+                                                        w <- normal
                                                         let idx = get_index f is 0
                                                         return $ gen_entry n nodes idx w
 
@@ -663,7 +671,14 @@ training_batches 0 _ net  _ _  = return net
 training_batches nr_times bs net sample s = do
                                                             (inp,out) <- get_random_batch bs sample
                                                             let net' = training_batch net inp out (s / fromIntegral bs)
+                                                            print $ calculate_error net' $ sample
                                                             training_batches (nr_times-1) bs net' sample s
+
+calculate_error :: Net ->  ([[Double]],[[Double]])   ->Double
+calculate_error net (inp,out) = (sum dist) / ( fromIntegral ( length out ))
+                                        where
+                                            preds = map (output net) inp
+                                            dist = concat $ zipWith( zipWith(\a b -> (a-b)^2)) preds out
 
 training_batch :: Net -> [[Double]] -> [[Double]] -> Double -> Net
 training_batch net input targets s =  foldr (\(i,t) net -> add_w net (get_gradient_net i t s) ) net set
@@ -733,9 +748,18 @@ find_z layers (l,n)  = z
                                 (xs,t:ys) = splitAt l layers
                                 (ks,(Node (z,_) _):ls) = splitAt n t
 
+train_data_out :: Int -> Net -> ([[Double]],[[Double]]) -> Double -> IO Net
+train_data_out 0  net  _ _  = return net
+train_data_out nr_times net sample s = do
+                                                            (inp,out) <- get_random_batch 1 sample
+                                                            let net' = train net (head inp) (head out) s
+                                                            putStr $ show s ++ " "
+                                                            print $ calculate_error net' $ sample
+                                                            train_data_out (nr_times-1) net' sample s
 
-train_data :: Net -> [[Double]] -> [[Double]] ->  Net
-train_data net input targets = foldr (\(i,t) net' -> train net' i t 0.5) net i_t
+
+train_data :: Net -> [[Double]] -> [[Double]] -> Double ->  Net
+train_data net input targets s = foldr (\(i,t) net' -> train net' i t s) net i_t
                                           where i_t = zip input targets
 
 output :: Net -> [Double] -> [Double]
@@ -745,12 +769,12 @@ output net input = map(\(Node (a,_) _) -> a) layer
                          f_net = f_propagate $set_input r_net input
                          layer = last $ app f_net
 
-find_best_fully_connected_net :: Int -> Int -> Int -> Int -> ([[Double]],[[Double]]) -> IO Net
-find_best_fully_connected_net nr_nets nr_steps width depth sample =
+find_best_fully_connected_net :: Int -> Int -> Int -> Int -> ([[Double]],[[Double]]) -> Double -> IO Net
+find_best_fully_connected_net nr_nets nr_steps width depth sample s =
             do
                 xs <- generate_fully_connected_net width depth
                 x <- sequ $replicate (nr_nets-1) $ generate_fully_connected_net width depth
-                let b_net = foldr (\x y -> snd  $ compete x y nr_steps sample) xs x
+                let b_net = foldr (\x y -> snd  $ compete x y nr_steps sample s) xs x
                 return b_net
 
 find_best_random_net :: Int -> Int -> Int -> Int -> Int -> Int -> ([[Double]],[[Double]]) -> IO Net
@@ -758,7 +782,7 @@ find_best_random_net nr_nets nr_steps width depth nr_neuron nr_con sample =
      do
          xs <- generate_random_net width depth nr_neuron nr_con
          x <- sequ $replicate (nr_nets-1) $ generate_random_net width depth nr_neuron nr_con
-         (err,b_net) <- foldM (\x y -> compete_batch nr_steps 10 0.1 (snd x) y sample) (0::Double, xs) x
+         (err,b_net) <- foldM (\x y -> compete_batch nr_steps 5 0.1 (snd x) y sample) (0::Double, xs) x
          print(err)
          time <-getCurrentTime
          print time
@@ -770,7 +794,7 @@ update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s = d
                                                             time <-getCurrentTime
                                                             print time
                                                             n_net <-  update_random_net' nr_trainings bs nr_alt_neuron nr_con sample net s
-                                                            net' <-update_random_net (nr_times-1) nr_trainings bs nr_alt_neuron nr_con sample n_net s
+                                                            net' <- update_random_net (nr_times-1) nr_trainings bs nr_alt_neuron nr_con sample n_net s
                                                             return net'
 
 update_random_net' :: Int -> Int -> Int -> Int -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
@@ -780,9 +804,56 @@ update_random_net' nr_trainings bs nr_alt_neuron nr_con sample net s  = do
                                                               print error'
                                                               return net'
 
+change_out_net :: Int -> Net -> IO Net
+change_out_net nr_nodes net = do
+                                                 let design = net_to_design net
+                                                 n_des <- change_out_design nr_nodes design
+                                                 return $ design_to_net n_des
 
 
+change_out_design :: Int -> Design -> IO Design
+change_out_design nr_nodes design = do
+                                             let  last_l = last_layer_design design
+                                             let (m,_) = head last_l
+                                             let  (keep,go) = splitAt nr_nodes last_l
+                                             let  p_tos = to_set $ concatMap (\x -> point_to x design) go
+                                             connect <- (reconnect_list (pure p_tos) (reconnect (keep,go) ) )
+                                             let (_,n_des) = (appD connect) design
+                                             return $ filter (\((a,b),_) -> a /= m || b < nr_nodes) n_des
 
+to_set:: Eq a => [a] -> [a]
+to_set []     = []
+to_set (x:xs) = x: to_set (filter (\y -> y /= x) xs )
+
+reconnect_list :: DT [(Int,Int)] -> (IO ([(Int,Int)]-> DT [(Int,Int)]))-> IO (DT [(Int,Int)])
+reconnect_list  dt f  = do
+                                g <- f
+                                let dt' = dt >>= g
+                                if fst (appD dt' []) == []
+                                    then return dt'
+                                else reconnect_list dt' f
+
+reconnect :: ([(Int,Int)],[(Int,Int)]) ->  IO ([(Int,Int)]-> DT [(Int,Int)])
+reconnect (keep,go) = do
+                        idx <- randomRIO(0, (length keep) -1)
+                        let n = fst $ head keep
+                        let f p_to ds = case ds of
+                                [] -> []
+                                ((p@(p1,p2),ts):xs) -> if p == p_to then ((p, new_ts) : (f p_to xs)) else (p, ts) : (f p_to xs)
+                                    where
+                                         (k1,k2) = keep !! idx
+                                         n_ts = map(\(w, q@(q1,q2)) -> if elem (p1+q1+1,q2) go then (w, (q1,k2) ) else (w,q) ) ts
+                                         new_ts = set_by (\(_,e1) (_,e2) ->  e1 == e2) n_ts
+                        return $(\(p_to:p_tos) ->(D (\d -> (p_tos, f p_to d))))
+
+
+set_by :: (a-> a -> Bool)->[a] -> [a]
+set_by _ []     = []
+set_by f (x:xs) = x: set_by f  (filter (not . (f x)) xs)
+
+last_layer_design :: Design -> [(Int,Int)]
+last_layer_design design = map (\(p,_)-> p) $ filter (\((a,_),_) -> a == m) design
+    where m = maximum $ map( \((a,b),_) -> a) design
 
 sequ :: [IO a] -> IO [a]
 sequ [] = return []
@@ -807,13 +878,13 @@ train_measure_quality nr_trainings bs s net inp out =  do
                                             let error' = if isNaN err then infinity else err
                                             return (err, n_net)
 
-compete :: Net -> Net -> Int -> ([[Double]],[[Double]]) -> (Double, Net)
-compete net1 net2 nr_steps sample = if (error1 < error2) then (error1, n_net1) else  (error2, n_net2)
+compete :: Net -> Net -> Int -> ([[Double]],[[Double]]) -> Double -> (Double, Net)
+compete net1 net2 nr_steps sample s = if (error1 < error2) then (error1, n_net1) else  (error2, n_net2)
                                                     where
                                                         inp = take nr_steps (fst sample)
                                                         out = take nr_steps (snd sample)
-                                                        n_net1 = train_data net1 inp out
-                                                        n_net2 = train_data net2 inp out
+                                                        n_net1 = train_data net1 inp out s
+                                                        n_net2 = train_data net2 inp out s
                                                         predi1 = map (output n_net1) inp
                                                         predi2 = map (output n_net2) inp
                                                         err1 =  sum $ zipWith (\a b -> sum  $(zipWith( \x y -> (x-y)^2)) a b) predi1 out
@@ -947,6 +1018,9 @@ test9 = do
     print net1''
     print net2''
 
+
+
+
 --finding the bug
 test10 = do
                 let design = [((0,0),[(6.577902026013427e-2,(0,3)),(2.9939257933782062e-2,(0,2)),(-2.6304549820658316e-2,(2,0)),(-8.218781819194819e-2,(0,0)),(-1.1041119102555008e-3,(2,1)),(9.166562213774526e-2,(3,2)),(9.05378837675605e-3,(3,1))]),
@@ -975,7 +1049,7 @@ test10 = do
                 (inp,outs) <- dat
                 let inputs = cycle inp
                 let outputs = cycle outs
-                let n_net = train_data net (take 1500 inputs) (take 1500 outputs)
+                let n_net = train_data net (take 1500 inputs) (take 1500 outputs) 0.01
                 print $ output n_net (inp !! 0)
                 let design2 = [((0,0),[(2.4364809864687944e-2,(0,3)),(2.3725099428270974e-2,(3,1)),(-5.151568631749562e-2,(1,1)),(8.153692835933743e-3,(0,1)),(5.030914896643321e-2,(1,3)),(-4.04249290580107e-2,(3,0))]),
                                        ((0,1),[(1.5386864952611257e-2,(0,1)),(2.8862554480309433e-2,(1,2)),(7.86534117726621e-2,(3,0)),(-6.86080711099373e-2,(3,2)),(9.377925502003479e-2,(0,3)),(6.163764211733008e-2,(3,3)),(2.8098981637196513e-2,(1,1)),(2.9203984604679184e-3,(1,3))]),
@@ -999,9 +1073,9 @@ test10 = do
                                        ((4,2),[]),
                                        ((4,3),[])]
                 let net2 = design_to_net design2
-                let n_net2 = train_data net2 (take 1500 inputs) (take 1500 outputs)
+                let n_net2 = train_data net2 (take 1500 inputs) (take 1500 outputs) 0.01
                 print $ output n_net2 (inp !! 0)
-                let found_net = compete net net2 250   (take 10000 inputs, take 10000 outputs)
+                let found_net = compete net net2 250   (take 10000 inputs, take 10000 outputs) 0.01
                 print $ output (snd found_net) (inp !! 0)
                 g_net <- generate_random_net 4 5 10 8
                 print g_net
@@ -1039,7 +1113,7 @@ test12 = do
 test13 = do
         net <-generate_random_net 4 20 10 5
         (inp,outs) <- dat
-        (n_inp, n_out) <- get_random_batch 10 (inp,outs)
+        (n_inp, n_out) <- get_random_batch 10 (take 40 inp, take 40 outs)
         --training_batch :: Net -> [[Double]] -> [[Double]] -> Double -> Net
         let t_net = training_batch net (n_inp) (n_out) 0.01
         print $ output t_net (inp !! 0)
@@ -1065,13 +1139,37 @@ test15 = do
     print "orignal net"
     print $  f $  net_to_design net
 
+test16 = do
+    net  <- generate_random_net 5 5 3 3
+    changed <- change_out_net 2 net
+    print changed
+
+test17 = do
+    net <- generate_random_net 7 10 3  7
+    changed <- change_out_net 1 net
+    (a_net,n_net)<- alter_neurons 1 3 changed
+    print a_net
+    print n_net
+    (inp,outs) <- dat
+    --t_net <- training_batches 100 10 changed (inp,outs) 0.01
+    --print "changed done"
+    --b_net2 <- training_batches 100 10 a_net (inp,outs) 0.01
+    --print "Done with a_net"
+    --b_net2 <- training_batches 100 10 n_net (inp,outs) 0.01
+    --print "Done with n_net"
+    --update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
+    found <- update_random_net 100 100 10 1 3 (inp,outs) changed 0.01
+    print "Done wiht found"
+    --(n_a, n_b) <- alter_neurons 1 3 a_net
+    --print n_a
+    --print n_b
+    --(n_c, n_d) <- alter_neurons 1 3 n_net
+    --print n_c
+    --print n_d
 
 main::IO()
 main = do
-          (inp',outs') <- dat
-          let (inp, outs) = pimp_dat 13 (inp',outs')
-          let inputs = cycle inp
-          let outputs = cycle outs
+          (inp,outs) <- dat
           --bf_net <- find_best_fully_connected_net 250 250 4 30  (take 10000 outputs, take 10000 inputs)
           putStrLn "Fully Connected Network"
           putStrLn "Prediction:"
@@ -1083,13 +1181,17 @@ main = do
           --find_best_random_net nr_nets nr_steps width depth nr_neuron nr_con sample
           putStrLn "Random Generated Network"
           putStrLn "Prediction:"
-          the_net <- find_best_random_net 100 10 13 40 100 8 (outs, inp)
+          --the_net <- find_best_random_net 100 1000 4 30 40 12 (outs, inp)
           --train and update net, while altering neurons
           --update_random_net nr_times nr_steps nr_alt_neuron nr_con sample net
           --b_net <- update_random_net 1 1000 10 8 (take 10000 inputs, take 10000 outputs) the_net
-          b_net <- update_random_net 10000 100 40 10 8 (outs, inp) the_net 0.01
+          the_net <- generate_fully_connected_net 7 7
+          --the_net <- generate_random_net 7 10 40  7
+          n_net <- change_out_net 1 the_net
+          --update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
+          --b_net <- update_random_net 1000 1000 10 2  7 (inp,outs) n_net 0.01
+          -- training_batches nr_times bs net sample s
+          b_net <- training_batches 10000 10 n_net (inp,outs) 0.01
           print $ output b_net (outs !! 0)
-          --print $ let b_net = train_data the_net (take 150000 inputs) (take 150000 outputs)
-          -- in output b_net (inp !! 0)
           putStrLn "Expected Output:"
-          print  $ inp !! 0
+          print  $ outs !! 0
