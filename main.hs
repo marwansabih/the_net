@@ -4,31 +4,40 @@ import           Runner
 
 --ghc -O2 -o main.out main.hs -fprof-auto  -fprof-cafs -fforce-recomp
 
+-- training_batches nr_times bs net sample s
+-- find_best_fully_connected_net nr_nets training_steps bs width depth sample s
+-- find_best_random_net nr_nets training_steps bs width depth nr_neuron nr_con sample s
+-- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
+-- output net input
+
+-- alter_neurons nr_neuron nr_cons net
+-- generate_fully_connected_net width depth
+-- generate_random_net width depth nr_neuron nr_con
+
 main::IO()
 main = do
+          -- Example 1: Best fully connected net out of 12 - afterwards trained
           (inp,outs) <- dat
-          --bf_net <- find_best_fully_connected_net 250 250 4 30  (take 10000 outputs, take 10000 inputs)
-          putStrLn "Fully Connected Network"
-          putStrLn "Prediction:"
-          --print $ let f_net = train_data bf_net (take 1500 outputs) (take 1500 inputs)
-            --    in output f_net (inp !! 0)
-          putStrLn "Expected Output:"
-          print  $ outs !! 0
-          -- generate_random_net witdh depth nr_neuron nr_con
-          --find_best_random_net nr_nets nr_steps width depth nr_neuron nr_con sample
-          putStrLn "Random Generated Network"
-          putStrLn "Prediction:"
-          --the_net <- find_best_random_net 100 1000 4 30 40 12 (outs, inp)
-          --train and update net, while altering neurons
-          --update_random_net nr_times nr_steps nr_alt_neuron nr_con sample net
-          --b_net <- update_random_net 1 1000 10 8 (take 10000 inputs, take 10000 outputs) the_net
-          --the_net <- generate_fully_connected_net 7 7
-          the_net <- generate_random_net 7 30 100  7
-          n_net <- change_out_net 1 the_net
-          --update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
-          b_net <- update_random_net 1000 5000 10 5  7 (inp,outs) n_net 0.01
+          -- find_best_fully_connected_net nr_nets training_steps bs nr_steps width depth sample s
+          best_f_net <- find_best_fully_connected_net 12 11 10  7 4 (inp,outs) 0.01
           -- training_batches nr_times bs net sample s
-          --b_net <- training_batches 10000 10 n_net (inp,outs) 0.01
-          print $ output b_net (outs !! 0)
-          putStrLn "Expected Output:"
+          trained_f_net <- training_batches 10 10 best_f_net (inp,outs) 0.01
+          putStrLn "Fully Connected Network"
+          putStr "Prediction of first input from sample: "
+          print $ output trained_f_net (inp !! 0)
+          putStr "Expected Output: "
+          print  $ outs !! 0
+
+         -- Example 2: a random network is created and trained
+         -- alternative for finding a good network:
+         --  find_best_random_net nr_nets training_steps bs width depth nr_neuron nr_con sample s
+         -- alternative for training:
+         -- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
+          random_net <- generate_random_net 7 30 100  7
+          -- training_batches nr_times bs net sample s
+          trained_random_net <- training_batches 10 10 random_net (inp,outs) 0.01
+          putStrLn "Random Network"
+          putStr "Prediction of first input from sample: "
+          print $ output trained_random_net (inp !! 0)
+          putStr "Expected Output: "
           print  $ outs !! 0

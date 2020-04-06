@@ -9,8 +9,6 @@ import           Types
 
 --ghc -O2 -o main.o the_net.hs -fprof-auto  -fprof-cafs -fforce-recomp
 
-
-
 set_input :: Net -> [Double] -> Net
 set_input (Net (layer : layers)) input = Net $  n_layer : layers
                                                 where n_layer =  zipWith(\a (Node _ b) -> Node (a,0) b) (input++[1.0]) layer
@@ -77,10 +75,10 @@ b_propagate_node (Node (a,v) ((w,(l,n)):ts)) layers = b_propagate_node (Node (a,
                                       (ks,(Node (_,d) _):ls) = splitAt n t
 
 
-training_batch :: Net -> [[Double]] -> [[Double]] -> Double -> Net
-training_batch net input targets s =  foldr (\(i,t) net -> add_w net (get_gradient_net i t s) ) net set
+training_batch :: Net -> ([[Double]], [[Double]]) -> Double -> Net
+training_batch net set s =  foldr (\(i,t) net -> add_w net (get_gradient_net i t s) ) net n_set
                                                    where
-                                                       set = zip input targets
+                                                       n_set = (\(x,y) -> zip x y) set
                                                        add_up = zipWith(\(w1, x) (w2, _) -> (w1+w2,x))
                                                        add_w = apply(\(Node (a,z) ts) (Node (a',d) ts') -> Node (a,z) (add_up ts ts') )
                                                        get_gradient_net = get_gradient net

@@ -3,7 +3,6 @@ module Network
         alter_neurons,
         generate_fully_connected_net,
         generate_random_net,
-        change_out_net
 )
 where
 
@@ -333,13 +332,15 @@ generate_fully_connected_net width depth =
                                                     let cons =  map (replicate (width)) $ zipWith (zip) weights next_layers
                                                     let n_net = Net2 $ zipWith(\c d -> zipWith( \(Node2 a _ ) b -> Node2 a b) c d) (app2 net) cons
                                                     r_net <- add_bias n_net [(a,b)| a <-[1..(depth-1)], b <-[0..(width-1)]  ]
-                                                    return $ convert_net2_net r_net
+                                                    let net' = convert_net2_net r_net
+                                                    change_out_net 1 net'
 
 generate_random_net::  Int -> Int -> Int -> Int -> IO Net
 generate_random_net width depth nr_neuron nr_con =
                                                         do
                                                             net2 <- generate_random_net2 width depth nr_neuron nr_con
-                                                            return $ convert_net2_net net2
+                                                            let net' = convert_net2_net net2
+                                                            change_out_net 1 net'
 
 generate_random_net2:: Int -> Int -> Int -> Int -> IO (Net2 Double)
 generate_random_net2 width depth nr_neuron nr_con =
