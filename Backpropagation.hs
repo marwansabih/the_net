@@ -1,4 +1,4 @@
-module Net where
+module Backpropagation where
 
 import           Control.Monad
 import           Data.List

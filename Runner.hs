@@ -7,9 +7,9 @@ module Runner
         output
 ) where
 
+import           Backpropagation
 import           Control.Monad
 import           Data.Time
-import           Net
 import           Network
 import           Types
 
