@@ -9,7 +9,7 @@ Before going into full detail a short introduction of all essential functions wi
 trains the network (net) for nr_times with a batch_size bs using the sample with learningrate s
 using mini gradient batch descent
 clarification: batch_size means that the network will use a batch of batch_size examples drawn
-randomly form the sample to minimize the training error.
+randomly at once form the sample to minimize the training error.
 
 -- find_best_fully_connected_net nr_nets training_steps bs width depth sample s
 
@@ -20,25 +20,30 @@ with spezified number of trainings_steps, batch_size bs and learning_rate s
 -- find_best_random_net nr_nets training_steps bs width depth nr_neuron nr_con sample s
 
 similar to the previous command, but this time a random net is used for training
-for more information see button - here nr_neuron is the number of neurons
-which will spread between the input_layer which will all create nr_con connections.
-clarification: a network of example of width 7 and depth 5 can have
+for more information see bottom - here nr_neuron is the number of neurons
+which will be spread between the input_layer and outputlayer 
+and every neuron will first be placed and then create nr_con connections.
+One connection to a previous layers and the next connections to 
+following layer.
+clarification: a network for example of width 7 and depth 5 can have
 a maximum of 35 neurons and since 14 of these neurons will be taken by
-input and output layer only 21 layers will remain(the maximum number
+input and output layer only 21 layers will remain (the maximum number
 you can specify for nr_neuron). While creating 
 a neural network neurons might generate less connection than specified
-(1 connection goes back the rest to the front if ... so it depends on 
-how many neurons are infront of a generated neuron)
+(1 connection goes back the rest to the following layers, therefore the number of
+possible connections by the number of neurons in the following layers.)
 
 -- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
 
-allows a special kind of training which will be repeated nr_times 
+Allows a special kind of training which will be repeated nr_times 
 here the goal is to enhance the network structure by iteratively 
-alternate the network by removing neurons and remove them by new ones.
-the network of the last step will allways compete with the altered network,
-to make since a bit more fair the network from last step will reset the
-weigths of the connections of the neurons which are replaced in the
-altered network
+alternate the network by removing some neurons and replacing them by new ones.
+The idea is to keep most of the network architecture intact by keeping
+most of the weights.
+The network of the last step will allways compete with his newly altered network,
+to make the process of finding a better architectur more easy the network 
+from last step will reset the weigths of the connections of the neurons,
+which are replaced in the altered network.
 
 -- output net input
 
@@ -55,31 +60,13 @@ should be self-explanatory
 
 -- generate_random_net width depth nr_neuron nr_con
 
-clarification: a network of example of width 7 and depth 5 can have
+clarification: a network for example of width 7 and depth 5 can have
 a maximum of 35 neurons and since 14 of these neurons will be taken by
 input and output layer only 21 layers will remain (the maximum number
 you can specify for nr_neuron). While creating 
 a neural network neurons might generate less connection than specified
-(1 connection goes back the rest to the front if ... so it depends on 
-how many neurons are infront of a generated neuron)
-
-
-How to use the existing neural network simple net:
-
-let net = train_data simple_net (replicate 10000  [0.3,0.5]) (replicate 10000  [0.9, 0.275])
-                  in output net [0.3,0.5]
-                  
-1. a neural networks is trained with the repeating input [0.3,0.5] and the corresponding repeating target values [0.9, 0.275] 
-2. The trained neural network will give out the ouput for the input [0.3, 0.5], which should be of course very close to [0.9,0.275]
-
-How to generate a random neural network: 
-
--- generate_random_net witdh depth nr_neuron nr_con
-the_net <- generate_random_net 2 4 4 2
-
-This command will generate a random neural_network with corresponding width and depth
-(nr_neuron) number of neurons (only counting the hidden-layers)  
-(nr_con) number of connection (one connection will be connected backwards the rest forwards) 
+(1 connection goes back the rest to the following layers, therefore the number of
+possible connections by the number of neurons in the following layers.)
 
 Detailed descricptions:
 
