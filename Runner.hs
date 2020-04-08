@@ -4,6 +4,7 @@ module Runner
         find_best_fully_connected_net,
         find_best_random_net ,
         update_random_net,
+        update_random_net_con,
         output
 ) where
 
@@ -58,6 +59,22 @@ find_best_random_net nr_nets training_steps bs width depth nr_neuron nr_con samp
          time <-getCurrentTime
          print time
          return b_net
+
+update_random_net_con :: Int ->Int -> Int -> Int  -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
+update_random_ne_cont 0 _ _ _ _ net _ = return net
+update_random_net_con nr_times nr_trainings bs nr_con sample net s = do
+                                                            time <-getCurrentTime
+                                                            print time
+                                                            n_net <-  update_random_net_con' nr_trainings bs nr_con sample net s
+                                                            net' <- update_random_net_con (nr_times-1) nr_trainings bs nr_con sample n_net s
+                                                            return net'
+
+update_random_net_con' :: Int -> Int  -> Int -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
+update_random_net_con' nr_trainings bs nr_con sample net s  = do
+                                                              (net1,net2) <- alter_connections nr_con net
+                                                              (error', net') <- compete_batch nr_trainings bs s net1 net2 sample
+                                                              print error'
+                                                              return net'
 
 update_random_net :: Int ->Int -> Int -> Int -> Int -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
 update_random_net 0 _ _ _ _ _ net _ = return net

@@ -5,3 +5,4 @@
 - Add possibility to clone Net and alter a few connections
 - Add possibility to handle images
 - Add possibility to save and reload networks
+- maybe add distance to new_connections
