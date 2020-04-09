@@ -45,9 +45,10 @@ alter_connections :: Int -> Net -> IO (Net,Net)
 alter_connections nr_cons net = do
                              let design = net_to_design net
                              (cons, del_design) <- delete_connections nr_cons design
-                             r_design <- reset_con_weights cons design
+                             --r_design <- reset_con_weights cons design
                              n_design <- add_connections nr_cons del_design
-                             return (design_to_net r_design, design_to_net n_design)
+                             --return (design_to_net r_design, design_to_net n_design)
+                             return (net, design_to_net n_design)
 
 reset_con_weights :: [((Int,Int),(Int,Int))] -> Design -> IO Design
 reset_con_weights [] design = return design

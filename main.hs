@@ -21,9 +21,9 @@ main = do
           -- Example 1: Best fully connected net out of 12 - afterwards trained
           (inp,outs) <- dat
           -- find_best_fully_connected_net nr_nets training_steps bs nr_steps width depth sample s
-          best_f_net <- find_best_fully_connected_net 12 11 10  7 4 (inp,outs) 0.01
+          best_f_net <- find_best_fully_connected_net 20 100 10  7 6 (inp,outs) 0.001
           -- training_batches nr_times bs net sample s
-          trained_f_net <- training_batches 10 10 best_f_net (inp,outs) 0.01
+          trained_f_net <- training_batches 100000 10 best_f_net (inp,outs) 0.001
           putStrLn "Fully Connected Network"
           putStr "Prediction of first input from sample: "
           print $ output trained_f_net (inp !! 0)
@@ -36,9 +36,9 @@ main = do
          -- alternatives for training:
          -- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
          -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          random_net <- generate_random_net 7 30 100  7
+          random_net <- generate_random_net 7 10 30  7
           -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          trained_random_net <- update_random_net_con 100 1000 10 3 (inp,outs) random_net  0.01
+          trained_random_net <- update_random_net_con 100 100 10 3 (inp,outs) random_net  0.001
           putStrLn "Random Network"
           putStr "Prediction of first input from sample: "
           print $ output trained_random_net (inp !! 0)
