@@ -1,4 +1,5 @@
 import           Data
+import           Memory
 import           Network
 import           Runner
 
@@ -15,6 +16,9 @@ import           Runner
 -- alter_connections nr_con net
 -- generate_fully_connected_net width depth
 -- generate_random_net width depth nr_neuron nr_con
+
+-- save_net filename net
+-- load_net filename
 
 main::IO()
 main = do
