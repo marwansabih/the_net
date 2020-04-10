@@ -1,8 +1,10 @@
-module Memory where
+module Memory
 (
-   save_net,
-   load_net
+    save_net,
+    load_net
 )
+where
+
 import           Data.List
 import           Data.List.Split
 import           Data.Text       (strip)
