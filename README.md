@@ -1,23 +1,37 @@
-"# the_net" 
-At this state the code is still a little bit clumsy, 
-the main shows two simple examples of how to train networks with the given sample data_set:
+# Installation
 
-Before going into full detail a short introduction of all essential functions will be given here:
+* install Haskell from https://www.haskell.org/platform/
+* update cabal: use following command in terminal **cabal update**
+* install split: **cabal install split**
+* install random: **cabal install random**
 
--- training_batches nr_times bs net sample s
+
+# Quickstart
+
+for *building the programm* move inside the terminal into the projekt folder and run the following command:<br/> 
+**ghc -O2 -o main.out main.hs -fprof-auto  -fprof-cafs -fforce-recomp**<br/>
+now you can excute the programm via:<br/>
+**main.out**
+
+If you open the main.hs you will find to short example for training networks (a fully connected and a random generated one) using the 
+*nyc-east-river-bicycle-counts dataset* for more details see the descriptions below.
+
+Now a short introduction of all essential functions follows:
+
+#### training_batches nr_times bs net sample s
 
 trains the network (net) for nr_times with a batch_size bs using the sample with learningrate s
-using mini gradient batch descent
+using mini gradient batch descent<br/>
 clarification: batch_size means that the network will use a batch of batch_size examples drawn
 randomly at once form the sample to minimize the training error.
 
--- find_best_fully_connected_net nr_nets training_steps bs width depth sample s
+#### find_best_fully_connected_net nr_nets training_steps bs width depth sample s
 
 will automatically generate nr_nets fully connected networks with spezified width 
 (should be 7 cause test_sample has width 7), depth and train all of them
 with spezified number of trainings_steps, batch_size bs and learning_rate s
 
--- find_best_random_net nr_nets training_steps bs width depth nr_neuron nr_con sample s
+#### find_best_random_net nr_nets training_steps bs width depth nr_neuron nr_con sample s
 
 similar to the previous command, but this time a random net is used for training
 for more information see bottom - here nr_neuron is the number of neurons
@@ -33,7 +47,7 @@ a neural network neurons might generate less connection than specified
 (1 connection goes back the rest to the following layers, therefore the number of
 possible connections by the number of neurons in the following layers.)
 
--- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
+#### update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
 
 Allows a special kind of training which will be repeated nr_times 
 here the goal is to enhance the network structure by iteratively 
@@ -45,20 +59,20 @@ to make the process of finding a better architectur more easy the network
 from last step will reset the weigths of the connections of the neurons,
 which are replaced in the altered network.
 
--- output net input
+#### output net input
 
 allows to generate the prediction of the trained network net given the input
 
--- alter_neurons nr_neuron nr_cons net
+#### alter_neurons nr_neuron nr_cons net
 
 deletes specifified number of neurons from a network and replaces them with new ones who will create 
 (if possible, otherwise less) number connections.
 
--- generate_fully_connected_net width depth
+#### generate_fully_connected_net width depth
 
 should be self-explanatory 
 
--- generate_random_net width depth nr_neuron nr_con
+#### generate_random_net width depth nr_neuron nr_con
 
 clarification: a network for example of width 7 and depth 5 can have
 a maximum of 35 neurons and since 14 of these neurons will be taken by
@@ -68,7 +82,7 @@ a neural network neurons might generate less connection than specified
 (1 connection goes back the rest to the following layers, therefore the number of
 possible connections by the number of neurons in the following layers.)
 
-Detailed descricptions:
+# Detailed descricption
 
 All neurons of a layer can posses connections to random neurons of the following layers.
 The active used neurons in a random generated network will be choosen from
