@@ -61,7 +61,7 @@ find_best_random_net nr_nets training_steps bs width depth nr_neuron nr_con samp
          return b_net
 
 update_random_net_con :: Int ->Int -> Int -> Int  -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
-update_random_ne_cont 0 _ _ _ _ net _ = return net
+update_random_net_con 0 _ _ _ _ net _ = return net
 update_random_net_con nr_times nr_trainings bs nr_con sample net s = do
                                                             time <-getCurrentTime
                                                             print time

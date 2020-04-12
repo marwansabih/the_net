@@ -1,3 +1,4 @@
 *.hi
 *.o
-save_net
+saved_net
+test_save
