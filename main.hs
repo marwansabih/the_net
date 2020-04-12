@@ -53,8 +53,8 @@ main = do
          -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
           random_net <- generate_random_net 7 10 30  7
           -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          let f = update_random_net_con 50 100 10 3 (inp,outs)
-          trained_random_net <- run_and_save 5 "saved_net" f random_net  0.001
+          let f = update_random_net_con 5 100 10 3 (inp,outs)
+          trained_random_net <- run_and_save 50 "saved_net" f random_net  0.001
           putStrLn "Random Network"
           putStr "Prediction of first input from sample: "
           print $ output trained_random_net (inp !! 0)
