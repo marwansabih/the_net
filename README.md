@@ -4,6 +4,8 @@
 * update cabal: use following command in terminal **cabal update**
 * install split: **cabal install split**
 * install random: **cabal install random**
+* install hip: **cabal install hip**
+* install line-drawing :: **cabal install line-drawing**
 
 
 # Quickstart
