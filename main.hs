@@ -1,4 +1,5 @@
 import           Data
+import           Graphprinter
 import           Memory
 import           Network
 import           Runner
@@ -20,6 +21,8 @@ import           Types
 
 -- save_net filename net
 -- load_net filename
+
+--output_graph node_radius filename net
 
 run_and_save :: Int -> String -> (Net -> Double ->IO Net) -> Net -> Double -> IO Net
 run_and_save 0 _ _  net _ = return net
@@ -51,12 +54,16 @@ main = do
          -- alternatives for training:
          -- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
          -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          random_net <- generate_random_net 7 10 30  7
+          --random_net <- generate_random_net 7 10 30  7
+          random_net <- load_net "saved_net"
+          print random_net
+          output_graph node_radius filename net
+          output_graph 30 "random_net.png"  random_net
           -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          let f = update_random_net_con 5 100 10 3 (inp,outs)
-          trained_random_net <- run_and_save 50 "saved_net" f random_net  0.001
+          --let f = update_random_net_con 5 100 10 1 (inp,outs)
+          --trained_random_net <- run_and_save 50 "saved_net" f random_net  0.001
           putStrLn "Random Network"
           putStr "Prediction of first input from sample: "
-          print $ output trained_random_net (inp !! 0)
+          --print $ output trained_random_net (inp !! 0)
           putStr "Expected Output: "
           print  $ outs !! 0

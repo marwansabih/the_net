@@ -3,9 +3,12 @@ module Network
         alter_neurons,
         alter_connections,
         generate_fully_connected_net,
-        generate_random_net
+        generate_random_net,
+        net_to_design
 )
 where
+
+
 
 import           Control.Monad
 import           Data.List

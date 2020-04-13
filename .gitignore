@@ -2,3 +2,4 @@
 *.o
 saved_net
 test_save
+*.png
