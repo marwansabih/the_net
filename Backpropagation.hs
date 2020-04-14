@@ -7,7 +7,8 @@ import           Data.Time
 import           System.Random
 import           Types
 
---ghc -O2 -o main.o the_net.hs -fprof-auto  -fprof-cafs -fforce-recomp
+--ghc -O2 -optc-O3  -threaded -optc-ffast-math -fexcess-precision -funfolding-use-threshold=16 -o main.o the_net.hs  -fprof-auto  -fprof-cafs -fforce-recomp
+--main.hs +RTS -N4 eventuell bringt threaded so gut wie gar nichts....
 
 set_input :: Net -> [Double] -> Net
 set_input (Net (layer : layers)) input = Net $  n_layer : layers

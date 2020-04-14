@@ -100,9 +100,12 @@ compete_batch nr_trainings bs s net1 net2 sample  = do
 
 train_measure_quality :: Int -> Int -> Double -> Net -> ([[Double]], [[Double]]) -> IO (Double, Net)
 train_measure_quality nr_trainings bs s net sample =  do
+                                            let predi1 = map (output net) $ fst sample
+                                            let err1 = sum $ zipWith (\a b -> sum  $(zipWith( \x y -> (x-y)^2)) a b) predi1 (snd sample)
                                             n_net <- training_batches nr_trainings bs net sample s
                                             let predi = map (output n_net) $ fst sample
                                             let err =  sum $ zipWith (\a b -> sum  $(zipWith( \x y -> (x-y)^2)) a b) predi (snd sample)
                                             let infinity = (read "Infinity")::Double
                                             let error' = if isNaN err then infinity else err
-                                            return (err, n_net)
+                                            let error'' = if error' > err1 then error' +9999 else error'
+                                            return (error'', n_net)

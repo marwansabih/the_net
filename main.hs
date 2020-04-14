@@ -5,7 +5,7 @@ import           Network
 import           Runner
 import           Types
 
---ghc -O2 -o main.out main.hs -fprof-auto  -fprof-cafs -fforce-recomp
+--ghc -O2 -optc-O3 -optc-ffast-math -o main.out main.hs -fprof-auto  -fprof-cafs -fforce-recomp
 
 -- training_batches nr_times bs net sample s
 -- find_best_fully_connected_net nr_nets training_steps bs width depth sample s
@@ -54,16 +54,18 @@ main = do
          -- alternatives for training:
          -- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
          -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          --random_net <- generate_random_net 7 10 30  7
-          random_net <- load_net "saved_net"
+          random_net <- generate_random_net 7 10 15  7
+          --random_net <- load_net "saved_net_15_7_con"
           print random_net
-          output_graph node_radius filename net
-          output_graph 30 "random_net.png"  random_net
+          --output_graph node_radius filename net
+          --output_graph 20 "random_net.png"  random_net
           -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          --let f = update_random_net_con 5 100 10 1 (inp,outs)
-          --trained_random_net <- run_and_save 50 "saved_net" f random_net  0.001
+          let f = update_random_net_con 5 100 10 10 (inp,outs)
+          --let g =(\x y -> training_batches 100 10 x (inp,outs) y)
+          trained_random_net <- run_and_save 1000 "saved_net_4_con_n" f random_net  0.001
+          --trained_random_net <- run_and_save 3000 "saved_net_4_con_n" g random_net  0.0001
           putStrLn "Random Network"
           putStr "Prediction of first input from sample: "
-          --print $ output trained_random_net (inp !! 0)
+          print $ output trained_random_net (inp !! 0)
           putStr "Expected Output: "
           print  $ outs !! 0
