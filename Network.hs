@@ -2,6 +2,8 @@ module Network
 (
         alter_neurons,
         alter_connections,
+        removing_connections,
+        adding_connections,
         generate_fully_connected_net,
         generate_random_net,
         net_to_design
@@ -43,6 +45,25 @@ instance Applicative DT where
 instance Monad DT where
     -- (>>=) :: DT a -> (a -> DT b) -> DT b
     dt >>= f =  D (\d -> let (x,d') = appD dt d in appD (f x) d' )
+
+
+removing_connections :: Int -> Net -> IO (Net,Net)
+removing_connections nr_cons net = do
+                             let design = net_to_design net
+                             (cons, del_design) <- delete_connections nr_cons design
+                             --r_design <- reset_con_weights cons design
+                             --n_design <- add_connections nr_cons design
+                             --return (design_to_net r_design, design_to_net n_design)
+                             return (net, design_to_net del_design)
+
+adding_connections :: Int -> Net -> IO (Net,Net)
+adding_connections nr_cons net = do
+                             let design = net_to_design net
+                             --(cons, del_design) <- delete_connections nr_cons design
+                             --r_design <- reset_con_weights cons design
+                             n_design <- add_connections nr_cons design
+                             --return (design_to_net r_design, design_to_net n_design)
+                             return (net, design_to_net n_design)
 
 alter_connections :: Int -> Net -> IO (Net,Net)
 alter_connections nr_cons net = do
@@ -139,12 +160,12 @@ alter_neuron nr_cons (net1,net2) = do
                             let fr_ns = intersection fr_ns1 fr_ns2
                             to_delete <- draw_uniform 1 rm_ns
                             to_create <- draw_uniform (length to_delete) fr_ns
-                            reset_design <- do_all to_delete org_design1 reset_weights
+                            --reset_design <- do_all to_delete org_design1 reset_weights
                             d_design <- do_all to_delete org_design2 (to_IO remove_neuron)
                             altered_design <- do_all to_create d_design (add_neuron_design nr_cons)
-                            let r_net = design_to_net reset_design
+                            --let r_net = design_to_net reset_design
                             let a_net = design_to_net altered_design
-                            return (r_net, a_net)
+                            return (net1, a_net)
 
 intersection :: [(Int,Int)] -> [(Int,Int)] -> [(Int,Int)]
 intersection xs ys = filter(\x -> elem x xs) ys
