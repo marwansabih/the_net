@@ -1,6 +1,7 @@
 import           Data
 import           Graphprinter
 import           Memory
+import           MNIST
 import           Network
 import           Runner
 import           Types
@@ -28,6 +29,16 @@ import           Types
 
 --output_graph node_radius filename net
 
+run_and_save_image :: Int -> String -> (([[Double]], [[Double]]) -> Net -> Double ->IO Net) -> Net -> Double -> IO Net
+run_and_save_image 0 _ _  net _ = return net
+run_and_save_image times filename f  net s = do
+                                                               set <- draw_mnist_training_batch 500
+                                                               let the_set = format set
+                                                               net <- f the_set net s
+                                                               save_net filename net
+                                                               run_and_save_image  (times-1) filename f net s
+
+
 run_and_save :: Int -> String -> (Net -> Double ->IO Net) -> Net -> Double -> IO Net
 run_and_save 0 _ _  net _ = return net
 run_and_save times filename f  net s = do
@@ -44,6 +55,13 @@ run_and_save_two times filename f g  net s = do
                                                                save_net filename net''
                                                                run_and_save_two  (times-1) filename f g net'' s
 
+
+format :: [([[Double]], Double)]  -> ([[Double]], [[Double]])
+format xs = format' xs ([],[])
+
+format' :: [([[Double]], Double)] -> ([[Double]], [[Double]]) -> ([[Double]], [[Double]])
+format' [] found           = found
+format' ((a,b):xs) (as,bs) = ( ( map ((1.0/255.0)*) (concat a) ) :as, ([b]):bs)
 
 main::IO()
 main = do
@@ -65,19 +83,26 @@ main = do
          -- alternatives for training:
          -- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
          -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          random_net <- generate_random_net 7 10 30 4
-          --random_net <- load_net "neuron_net_3con_5_5_e-5.net"
-          print random_net
+          -- random_net <- generate_random_net 7 10 30 4
+          --random_net <- generate_random_net 784 10 200 4
+          random_net <- load_net "image_net"
+          let g =(\x y -> training_batches 100 1 x (inp,outs) y)
+          let f = update_random_net_con 1 100 1 4
+          trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.01
+          --random_net <- load_net "change_able_net"
+          --print random_net
           --output_graph node_radius filename net
           --output_graph 30 "neuron_3cons.png"  random_net
           -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          let f = update_add_del_net_con 5 100 10 1 (inp,outs)
-          let g = update_random_net_con 5 100 10 4 (inp,outs)
+          -- let f = update_add_net_con 5 1000 10 4 (inp,outs)
+          -- let g = update_del_net_con 5 1000 10 1 (inp,outs)
+          --let f = update_random_net_con 5 100 10 4  (inp,outs)
+          --let h = update_random_net 5 100 10 1 4  (inp,outs)
           --let g =(\x y -> training_batches 100 10 x (inp,outs) y)
-          trained_random_net <- run_and_save_two 1000 "change_able_net" f g random_net  0.001
+          --trained_random_net <- run_and_save_two 1000 "change_able_net" f f random_net  0.001
           --trained_random_net <- run_and_save 3000 "saved_net_4_con_n" g random_net  0.0001
           putStrLn "Random Network"
           putStr "Prediction of first input from sample: "
-          print $ output trained_random_net (inp !! 0)
+          --print $ output trained_random_net (inp !! 0)
           putStr "Expected Output: "
           print  $ outs !! 0
