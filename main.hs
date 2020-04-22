@@ -1,11 +1,11 @@
 import           Data
 import           Graphprinter
+import           IMGNetwork
 import           Memory
 import           MNIST
 import           Network
 import           Runner
 import           Types
-
 --ghc -O2 -optc-O3 -optc-ffast-math -o main.out main.hs -fprof-auto  -fprof-cafs -fforce-recomp
 --ghc -O2 -optc-O3  -threaded -optc-ffast-math -fexcess-precision -funfolding-use-threshold=16 -o main.o the_net.hs  -fprof-auto  -fprof-cafs -fforce-recomp
 
@@ -84,11 +84,11 @@ main = do
          -- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
          -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
           -- random_net <- generate_random_net 7 10 30 4
-          --random_net <- generate_random_net 784 10 200 4
-          random_net <- load_net "image_net"
+          random_net <- generate_image_net 28 28 10 200 7
+          --random_net <- load_net "image_net"
           let g =(\x y -> training_batches 100 1 x (inp,outs) y)
-          let f = update_random_net_con 1 100 1 4
-          trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.01
+          let f = update_random_net_con 1 100 2 30
+          trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.001
           --random_net <- load_net "change_able_net"
           --print random_net
           --output_graph node_radius filename net
