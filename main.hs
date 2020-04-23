@@ -56,12 +56,12 @@ run_and_save_two times filename f g  net s = do
                                                                run_and_save_two  (times-1) filename f g net'' s
 
 
-format :: [([[Double]], Double)]  -> ([[Double]], [[Double]])
+format :: [([[Double]], [Double])]  -> ([[Double]], [[Double]])
 format xs = format' xs ([],[])
 
-format' :: [([[Double]], Double)] -> ([[Double]], [[Double]]) -> ([[Double]], [[Double]])
+format' :: [([[Double]], [Double])] -> ([[Double]], [[Double]]) -> ([[Double]], [[Double]])
 format' [] found           = found
-format' ((a,b):xs) (as,bs) = ( ( map ((1.0/255.0)*) (concat a) ) :as, ([b]):bs)
+format' ((a,b):xs) (as,bs) = ( ( map ((1.0/255.0)*) (concat a) ) :as, b:bs)
 
 main::IO()
 main = do
@@ -84,11 +84,11 @@ main = do
          -- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
          -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
           -- random_net <- generate_random_net 7 10 30 4
-          random_net <- generate_image_net 28 28 10 200 7
+          random_net <- generate_image_net 28 28 10 10 200 7
           --random_net <- load_net "image_net"
           let g =(\x y -> training_batches 100 1 x (inp,outs) y)
           let f = update_random_net_con 1 100 2 30
-          trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.001
+          trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.01
           --random_net <- load_net "change_able_net"
           --print random_net
           --output_graph node_radius filename net

@@ -443,12 +443,12 @@ generate_fully_connected_net width depth =
                                                     let net' = convert_net2_net r_net
                                                     change_out_net 1 net'
 
-generate_image_net:: Int -> Int -> Int -> Int -> Int -> IO Net
-generate_image_net img_width img_height depth nr_neuron nr_con =
+generate_image_net:: Int -> Int -> Int -> Int -> Int -> Int -> IO Net
+generate_image_net img_width img_height depth nr_classes nr_neuron nr_con =
                                                         do
                                                             net2 <- generate_random_net2 img_width img_height depth nr_neuron nr_con
                                                             let net' = convert_net2_net net2
-                                                            change_out_net 1 net'
+                                                            change_out_net nr_classes net'
 
 generate_random_net2:: Int ->Int -> Int -> Int -> Int -> IO (Net2 Double)
 generate_random_net2 img_width img_height depth nr_neuron nr_con =
