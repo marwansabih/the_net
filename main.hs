@@ -5,6 +5,7 @@ import           Memory
 import           MNIST
 import           Network
 import           Runner
+import           RunnerClassic
 import           Types
 --ghc -O2 -optc-O3 -optc-ffast-math -o main.out main.hs -fprof-auto  -fprof-cafs -fforce-recomp
 --ghc -O2 -optc-O3  -threaded -optc-ffast-math -fexcess-precision -funfolding-use-threshold=16 -o main.o the_net.hs  -fprof-auto  -fprof-cafs -fforce-recomp
@@ -86,8 +87,8 @@ main = do
           -- random_net <- generate_random_net 7 10 30 4
           random_net <- generate_image_net 28 28 10 10 200 7
           --random_net <- load_net "image_net"
-          let g =(\x y -> training_batches 100 1 x (inp,outs) y)
-          let f = update_random_net_con 1 100 2 30
+          let g = update_random_net_classic 28 1 100 10 20 7
+          let f = update_random_net_con_classic 1 100 2 30
           trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.01
           --random_net <- load_net "change_able_net"
           --print random_net

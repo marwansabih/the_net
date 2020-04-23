@@ -17,6 +17,7 @@ import           Data.Time
 import           Network
 import           Types
 
+
 training_batches :: Int -> Int -> Net -> ([[Double]],[[Double]]) -> Double -> IO Net
 training_batches 0 _ net  _ _  = return net
 training_batches nr_times bs net sample s = do

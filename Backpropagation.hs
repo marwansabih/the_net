@@ -10,6 +10,13 @@ import           Types
 --ghc -O2 -optc-O3  -threaded -optc-ffast-math -fexcess-precision -funfolding-use-threshold=16 -o main.o the_net.hs  -fprof-auto  -fprof-cafs -fforce-recomp
 --main.hs +RTS -N4 eventuell bringt threaded so gut wie gar nichts....
 
+softmax :: [Double] -> [Double]
+softmax xs = map (1/norm*) e_xs
+                where
+                   e_xs = map exp xs
+                   norm = sum e_xs
+
+
 set_input :: Net -> [Double] -> Net
 set_input (Net (layer : layers)) input = Net $  n_layer : layers
                                                 where n_layer =  zipWith(\a (Node _ b) -> Node (a,0) b) (input++[1.0]) layer
@@ -57,6 +64,14 @@ set_last_deltas targets net = Net $ layers ++ [n_layer]
                                           n_layer = zipWith(\t (Node (a,_) ts) ->  Node(a,a-t) ts) targets $ last $ app net
 
 
+apply_softmax :: Net -> Net
+apply_softmax net = Net $ layers ++ [n_layer]
+                                        where
+                                          layers =  init $ app net
+                                          s_m = softmax $ map(\(Node (a,_) _) -> a ) $ last $ app net
+                                          n_layer = zipWith(\a (Node (_,b) ts) ->  Node(a,b) ts) s_m $ last $ app net
+
+
 b_propagate :: Net -> Net
 b_propagate (Net [])        = Net []
 b_propagate (Net ( a:l:[])) = Net $ (b_propagate_nodes a [l]):l:[]
@@ -76,13 +91,34 @@ b_propagate_node (Node (a,v) ((w,(l,n)):ts)) layers = b_propagate_node (Node (a,
                                       (ks,(Node (_,d) _):ls) = splitAt n t
 
 
+
+training_batch_classic :: Net -> ([[Double]], [[Double]]) -> Double -> Net
+training_batch_classic  net set s =  foldr (\(i,t) net -> add_w net (get_gradient_net i t s) ) net n_set
+                                                   where
+                                                       n_set = (\(x,y) -> zip x y) set
+                                                       add_up = zipWith(\(w1, x) (w2, _) -> (w1+w2,x))
+                                                       add_w = apply(\(Node (a,z) ts) (Node (a',d) ts') -> Node (a,z) (add_up ts ts') )
+                                                       get_gradient_net = get_gradient_classic net
+
+
 training_batch :: Net -> ([[Double]], [[Double]]) -> Double -> Net
-training_batch net set s =  foldr (\(i,t) net -> add_w net (get_gradient_net i t s) ) net n_set
+training_batch  net set s =  foldr (\(i,t) net -> add_w net (get_gradient_net i t s) ) net n_set
                                                    where
                                                        n_set = (\(x,y) -> zip x y) set
                                                        add_up = zipWith(\(w1, x) (w2, _) -> (w1+w2,x))
                                                        add_w = apply(\(Node (a,z) ts) (Node (a',d) ts') -> Node (a,z) (add_up ts ts') )
                                                        get_gradient_net = get_gradient net
+
+get_gradient_classic :: Net -> [Double] -> [Double] ->  Double ->Net
+get_gradient_classic net input targets s = get_gradient_f s c_net
+                    where
+                         r_net = reset net
+                         i_net = set_input r_net input
+                         f_net' = f_propagate i_net
+                         f_net = apply_softmax f_net'
+                         d_net = set_last_deltas targets $ reset' f_net
+                         b_net = b_propagate d_net
+                         c_net = apply (\(Node (a,z) ts) (Node (a',d) ts') -> Node (z,d) ts) f_net b_net
 
 get_gradient :: Net -> [Double] -> [Double] ->  Double ->Net
 get_gradient net input targets s = get_gradient_f s c_net
