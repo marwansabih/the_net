@@ -1,4 +1,5 @@
 import           Data
+import           Data.Time.Clock (diffUTCTime, getCurrentTime)
 import           Graphprinter
 import           IMGNetwork
 import           Memory
@@ -8,7 +9,7 @@ import           Runner
 import           RunnerClassic
 import           Types
 --ghc -O2 -optc-O3 -optc-ffast-math -o main.out main.hs -fprof-auto  -fprof-cafs -fforce-recomp
---ghc -O2 -optc-O3  -threaded -optc-ffast-math -fexcess-precision -funfolding-use-threshold=16 -o main.o the_net.hs  -fprof-auto  -fprof-cafs -fforce-recomp
+--ghc -O2 -optc-O3  -threaded -optc-ffast-math -fexcess-precision -funfolding-use-threshold=16 -o main.out main.hs  -fprof-auto  -fprof-cafs -fforce-recomp
 
 -- training_batches nr_times bs net sample s
 -- find_best_fully_connected_net nr_nets training_steps bs width depth sample s
@@ -30,12 +31,15 @@ import           Types
 
 --output_graph node_radius filename net
 
+
 run_and_save_image :: Int -> String -> (([[Double]], [[Double]]) -> Net -> Double ->IO Net) -> Net -> Double -> IO Net
 run_and_save_image 0 _ _  net _ = return net
 run_and_save_image times filename f  net s = do
-                                                               set <- draw_mnist_training_batch 500
+                                                               set <- draw_mnist_training_batch 1000
                                                                let the_set = format set
+                                                               print "start training"
                                                                net <- f the_set net s
+                                                               print "start saving"
                                                                save_net filename net
                                                                run_and_save_image  (times-1) filename f net s
 
@@ -85,10 +89,13 @@ main = do
          -- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
          -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
           -- random_net <- generate_random_net 7 10 30 4
-          random_net <- generate_image_net 28 28 10 10 200 7
-          --random_net <- load_net "image_net"
-          let g = update_random_net_classic 28 1 100 10 20 7
-          let f = update_random_net_con_classic 1 100 2 30
+          getCurrentTime >>= print
+          --random_net <- generate_image_net 28 28 5 10 200 10
+          getCurrentTime >>= print
+          random_net <- load_net "image_net"
+          --let g = update_random_net_classic 28 1 100 10 20 7
+          --let f = update_random_net_con_classic 5 1000 2 30
+          let f = (\x y z -> training_batches_classic 1000 2 y x z)
           trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.01
           --random_net <- load_net "change_able_net"
           --print random_net

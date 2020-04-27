@@ -11,12 +11,16 @@ module Network
 where
 
 
-
 import           Control.Monad
+import           Control.Parallel            (par, pseq)
+import           Control.Parallel.Strategies
 import           Data.List
 import           Data.List.Split
 import           System.Random
 import           Types
+
+new_map = parMap rpar
+
 --using Box-Muller for generation of normal distribution
 normal :: IO Double
 normal = do
@@ -90,14 +94,14 @@ add_connections nr_cons design = foldM (\x y -> add_connection x) design [1..nr_
 add_connection ::Design -> IO Design
 add_connection design = do
                                              w <- normal
-                                             let first_layer = init $ filter (\(x,_) -> x == 0) $ map fst design
+                                             let first_layer = init $ filter (\(x,_) -> x == 0) $ new_map fst design
                                              let p_nodes = first_layer ++ ( full_nodes design )
                                              let nr_p_cons ps  =  length $ connect_able_nodes ps design
                                              let choices = filter(\x -> nr_p_cons x > 0) p_nodes
                                              [choice@(c1,c2)] <- draw_uniform 1 choices
                                              [(a,b)] <- draw_uniform 1 $ connect_able_nodes choice design
                                              let n_entry = (w, (a-c1-1,b))
-                                             let n_des = map(\(x,ts) -> if x == choice then (x,n_entry:ts) else (x,ts)) design
+                                             let n_des = new_map(\(x,ts) -> if x == choice then (x,n_entry:ts) else (x,ts)) design
                                              return n_des
 
 connect_able_nodes :: (Int,Int) -> Design -> [(Int,Int)]
@@ -111,7 +115,7 @@ full_front_nodes pos design = intersection front_nodes fu_nodes ++ last_layer
                              where
                                  front_nodes = d_f_nodes pos design
                                  fu_nodes = full_nodes design
-                                 m = maximum $ map (\(x,_) -> x) front_nodes
+                                 m = maximum $ new_map (\(x,_) -> x) front_nodes
                                  last_layer = filter (\(a,_) -> a == m) front_nodes
 
 delete_connections :: Int -> Design -> IO ([((Int,Int),(Int,Int))],Design)
@@ -125,7 +129,7 @@ delete_connections' n (xs,design) = do
 
 delete_connection :: Design -> IO (((Int,Int),(Int,Int)),Design)
 delete_connection design = do
-                                             let bias_pos = last $ map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) design
+                                             let bias_pos = last $ new_map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) design
                                              let nr_own_cons ps = length $ point_at ps design
                                              let choices = filter( /=bias_pos)$ filter(\x -> nr_own_cons  x > 1)  $ desconnect_able_nodes design
                                              [choice] <- draw_uniform 1 choices
@@ -136,7 +140,7 @@ delete_connection design = do
                                              let to_delete = (\(a,b) -> (a- (fst choice)-1,b ))  (p_ats' !! k)
                                              let ts = snd $ head $ filter(\(x,ts) -> x ==choice) design
                                              let n_ts = filter(\(_,x) -> x /= to_delete) ts
-                                             let n_des = map(\(x,ts) -> if x == choice then (x,n_ts) else (x,ts)) design
+                                             let n_des = new_map(\(x,ts) -> if x == choice then (x,n_ts) else (x,ts)) design
                                              return  ((choice, to_delete), n_des)
 
 alter_neurons:: Int -> Int -> Net -> IO (Net,Net)
@@ -171,7 +175,7 @@ intersection :: [(Int,Int)] -> [(Int,Int)] -> [(Int,Int)]
 intersection xs ys = filter(\x -> elem x xs) ys
 
 design_to_net :: Design -> Net
-design_to_net design = Net $ map(map(\(_,ts) -> Node (0.0,0.0) ts )) layers
+design_to_net design = Net $ new_map(map(\(_,ts) -> Node (0.0,0.0) ts )) layers
                             where layers = to_layers 0 design []
 
 to_layers :: Int -> Design -> [Design] -> [Design]
@@ -223,7 +227,7 @@ draw_from_list :: Int -> (Int,Int)-> ([(Int,Int)],[(Int,Int)]) -> IO ([(Int,Int)
 draw_from_list 0 _ xs = return xs
 draw_from_list _ _ (a,[]) = return (a,[])
 draw_from_list n_cons pos nodes@(x,y) = do
-                                                            let ds = map (distance pos) (snd nodes)
+                                                            let ds = new_map (distance pos) (snd nodes)
                                                             let is = to_interval 0 ds
                                                             f <- randomRIO(0.0, last is)
                                                             let idx = get_index f is 0
@@ -239,20 +243,20 @@ connect_b pos fs = reset_list pos (pure fs) add_b_connection
 full_d_f_nodes :: (Int,Int) -> Design -> [(Int,Int)]
 full_d_f_nodes pos design = l_l ++ (filter (\x -> elem x fu_ns) f_ns)
     where
-        f_ns = f_nodes pos (map fst design)
+        f_ns = f_nodes pos (new_map fst design)
         fu_ns = full_nodes design
-        m =  maximum $ map fst f_ns
+        m =  maximum $ new_map fst f_ns
         l_l = filter(\(a,b) -> a == m) f_ns
 
 d_f_nodes :: (Int,Int) -> Design -> [(Int,Int)]
-d_f_nodes pos design = f_nodes pos (map fst  design)
+d_f_nodes pos design = f_nodes pos (new_map fst  design)
 
 full_d_b_nodes :: (Int,Int) -> Design -> ((Int,Int),[(Int,Int)])
 full_d_b_nodes pos design = ((0,m),result)
            where
-               b_ns = b_nodes pos (map fst design)
+               b_ns = b_nodes pos (new_map fst design)
                f_ns = full_nodes design
-               m =  maximum $ map snd $ filter(\(a,_) -> a == 0) b_ns
+               m =  maximum $ new_map snd $ filter(\(a,_) -> a == 0) b_ns
                f_l = filter(\x@(a,b) -> x /= (0,m) && a == 0) b_ns
                result = f_l ++ (filter (\x -> elem x f_ns) b_ns)
 
@@ -261,8 +265,8 @@ full_d_b_nodes pos design = ((0,m),result)
 d_b_nodes :: (Int,Int) -> Design -> ((Int,Int),[(Int,Int)])
 d_b_nodes pos design = ((0,m),filter(\x -> x /= (0,m)) b_ns)
            where
-               b_ns = b_nodes pos (map fst design)
-               m =  maximum $ map snd $ filter(\(a,_) -> a == 0) b_ns
+               b_ns = b_nodes pos (new_map fst design)
+               m =  maximum $ new_map snd $ filter(\(a,_) -> a == 0) b_ns
 
 reset_weights :: (Int,Int) -> Design -> IO Design
 reset_weights pos design = do
@@ -336,10 +340,10 @@ add_f_connection pos@(a,b) w ((x1,x2):xs) = D (\d -> (xs, add_to d ))
 
 
 remove_neuron:: (Int,Int) -> Design -> Design
-remove_neuron pos dsgn = map(\(a,b) -> if(a == pos) then (a,[]) else (a,b)) wp_dsgn
+remove_neuron pos dsgn = new_map(\(a,b) -> if(a == pos) then (a,[]) else (a,b)) wp_dsgn
               where
                   p_to = point_to pos dsgn
-                  funcs = map (\x -> remove_entry_at x pos) p_to
+                  funcs = new_map (\x -> remove_entry_at x pos) p_to
                   wp_dsgn = foldr (\f x -> f x) dsgn funcs
 
 remove_entry_at :: (Int,Int) -> (Int,Int) -> Design -> Design
@@ -358,39 +362,39 @@ remove_able_nodes dsgn = filter (\x-> is_remove_able x dsgn) $ full_nodes dsgn
 --the idea is after the removel of a node every node needs to have
 --an output-connection and an input connection.
 is_remove_able :: (Int,Int) -> Design -> Bool
-is_remove_able pos dsgn = and $ map (\x -> length x > 1) $ p_tos ++ p_ats
+is_remove_able pos dsgn = and $ new_map (\x -> length x > 1) $ p_tos ++ p_ats
                             where
-                                    bias_pos = last $ map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) dsgn
+                                    bias_pos = last $ new_map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) dsgn
                                     p_to = point_to pos dsgn
                                     p_at = point_at pos dsgn
-                                    p_tos = map (\x -> point_at x dsgn) p_to
-                                    p_ats = map(\z -> filter(\y -> y /= bias_pos) z) $ map(\x -> point_to x dsgn)  p_at
+                                    p_tos = new_map (\x -> point_at x dsgn) p_to
+                                    p_ats = new_map(\z -> filter(\y -> y /= bias_pos) z) $ new_map(\x -> point_to x dsgn)  p_at
 
 
 desconnect_able_nodes :: Design -> [(Int,Int)]
-desconnect_able_nodes dsgn = filter (\x-> posses_removable_connection x dsgn) $ map fst dsgn
+desconnect_able_nodes dsgn = filter (\x-> posses_removable_connection x dsgn) $ new_map fst dsgn
 
 posses_removable_connection :: (Int,Int) -> Design -> Bool
-posses_removable_connection pos design = or $ map (\x -> length x > 1) p_ats
+posses_removable_connection pos design = or $ new_map (\x -> length x > 1) p_ats
                                                             where
-                                                                bias_pos = last $ map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) design
+                                                                bias_pos = last $ new_map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) design
                                                                 p_at = point_at pos design
-                                                                p_ats = map(\z -> filter(\y -> y /= bias_pos) z) $ map(\x -> point_to x design)  p_at
+                                                                p_ats = new_map(\z -> filter(\y -> y /= bias_pos) z) $new_map(\x -> point_to x design)  p_at
 
 
 --which nodes from previos layers point to the node
 point_to ::  (Int,Int) -> Design -> [(Int,Int)]
-point_to (c,d) = map(fst) . filter (\((a,_),ts) -> elem (c-a-1,d)  (map(snd) ts) )
+point_to (c,d) = new_map(fst) . filter (\((a,_),ts) -> elem (c-a-1,d)  (new_map(snd) ts) )
 
 -- which nodes the node points to in following layers
 point_at :: (Int,Int) -> Design -> [(Int,Int)]
-point_at (a,b) = (\(_,ts) -> map(\(w,(c,d)) -> (c+a+1,d) ) ts) . head . filter(\x -> (a,b) == (fst x))
+point_at (a,b) = (\(_,ts) -> new_map(\(w,(c,d)) -> (c+a+1,d) ) ts) . head . filter(\x -> (a,b) == (fst x))
 
 
 filter_nodes :: ( ((Int,Int),[(Double,(Int,Int))]) -> Bool )  ->Design -> [(Int,Int)]
-filter_nodes f dsgn  = map(fst) $ filter f  n_dsgn
+filter_nodes f dsgn  = new_map(fst) $ filter f  n_dsgn
                 where
-                    m = maximum $ map(\((a,b),_) -> a) dsgn
+                    m = maximum $ new_map(\((a,b),_) -> a) dsgn
                     n_dsgn = filter(\((a,b),_) -> a /= m && a /= 0) dsgn
 
 
@@ -408,7 +412,7 @@ poss_twin (x:xs) = if elem x xs then True else poss_twin xs
 check_entries :: Net -> String
 check_entries net = concatMap showlayer1 checks
                         where
-                              checks = map ( map (\(Node _ ls) -> (poss_twin (map (\(a,b) -> b)  ls ) ) ) )  (app net)
+                              checks = new_map ( map (\(Node _ ls) -> (poss_twin (map (\(a,b) -> b)  ls ) ) ) )  (app net)
                               showlayer1 x = (concatMap (\a -> if a then "True\n" else "False\n")  x) ++"\n"
 
 instance Show Net where
@@ -434,7 +438,7 @@ net_to_design  net = zipWith(\(Node _ ts) x -> (x,ts) ) (concat nodes) (concat i
                     n = length nodes
                     m = length (head nodes)
                     fst_layer = zip (repeat 0) [0..m-1]
-                    ids = fst_layer : ( map( \x -> zip (repeat x) [0..(m-2)] ) [1..(n-1)] )
+                    ids = fst_layer : ( new_map( \x -> zip (repeat x) [0..(m-2)] ) [1..(n-1)] )
 
 generate_fully_connected_net :: Int -> Int -> IO Net
 generate_fully_connected_net width depth =
