@@ -8,6 +8,8 @@ where
 
 
 import           Control.Monad
+import           Control.Parallel            (par, pseq)
+import           Control.Parallel.Strategies
 import           Data.List
 import           Data.List.Split
 import           System.Random
@@ -42,6 +44,8 @@ instance Monad DT where
     dt >>= f =  D (\d -> let (x,d') = appD dt d in appD (f x) d' )
 
 
+new_map = parMap rpar
+
 removing_connections :: Int -> Net -> IO (Net,Net)
 removing_connections nr_cons net = do
                              let design = net_to_design net
@@ -73,8 +77,8 @@ reset_con_weights :: [((Int,Int),(Int,Int))] -> Design -> IO Design
 reset_con_weights [] design = return design
 reset_con_weights ((pos, entry):xs) design = do
                                                     w <- normal
-                                                    let map_entry = map(\(w',ent) ->  if ent == entry then (w,ent) else (w',ent))
-                                                    let n_des = map(\(x,ts) -> if x == pos then (x, map_entry ts) else (x,ts) ) design
+                                                    let map_entry = new_map(\(w',ent) ->  if ent == entry then (w,ent) else (w',ent))
+                                                    let n_des = new_map(\(x,ts) -> if x == pos then (x, map_entry ts) else (x,ts) ) design
                                                     reset_con_weights xs n_des
 
 
@@ -85,14 +89,14 @@ add_connections nr_cons design = foldM (\x y -> add_connection x) design [1..nr_
 add_connection ::Design -> IO Design
 add_connection design = do
                                              w <- normal
-                                             let first_layer = init $ filter (\(x,_) -> x == 0) $ map fst design
+                                             let first_layer = init $ filter (\(x,_) -> x == 0) $ new_map fst design
                                              let p_nodes = first_layer ++ ( full_nodes design )
                                              let nr_p_cons ps  =  length $ connect_able_nodes ps design
                                              let choices = filter(\x -> nr_p_cons x > 0) p_nodes
                                              [choice@(c1,c2)] <- draw_uniform 1 choices
                                              [(a,b)] <- draw_uniform 1 $ connect_able_nodes choice design
                                              let n_entry = (w, (a-c1-1,b))
-                                             let n_des = map(\(x,ts) -> if x == choice then (x,n_entry:ts) else (x,ts)) design
+                                             let n_des = new_map(\(x,ts) -> if x == choice then (x,n_entry:ts) else (x,ts)) design
                                              return n_des
 
 connect_able_nodes :: (Int,Int) -> Design -> [(Int,Int)]
@@ -106,7 +110,7 @@ full_front_nodes pos design = intersection front_nodes fu_nodes ++ last_layer
                              where
                                  front_nodes = d_f_nodes pos design
                                  fu_nodes = full_nodes design
-                                 m = maximum $ map (\(x,_) -> x) front_nodes
+                                 m = maximum $ new_map (\(x,_) -> x) front_nodes
                                  last_layer = filter (\(a,_) -> a == m) front_nodes
 
 delete_connections :: Int -> Design -> IO ([((Int,Int),(Int,Int))],Design)
@@ -120,7 +124,7 @@ delete_connections' n (xs,design) = do
 
 delete_connection :: Design -> IO (((Int,Int),(Int,Int)),Design)
 delete_connection design = do
-                                             let bias_pos = last $ map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) design
+                                             let bias_pos = last $ new_map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) design
                                              let nr_own_cons ps = length $ point_at ps design
                                              let choices = filter( /=bias_pos)$ filter(\x -> nr_own_cons  x > 1)  $ desconnect_able_nodes design
                                              [choice] <- draw_uniform 1 choices
@@ -131,7 +135,7 @@ delete_connection design = do
                                              let to_delete = (\(a,b) -> (a- (fst choice)-1,b ))  (p_ats' !! k)
                                              let ts = snd $ head $ filter(\(x,ts) -> x ==choice) design
                                              let n_ts = filter(\(_,x) -> x /= to_delete) ts
-                                             let n_des = map(\(x,ts) -> if x == choice then (x,n_ts) else (x,ts)) design
+                                             let n_des = new_map(\(x,ts) -> if x == choice then (x,n_ts) else (x,ts)) design
                                              return  ((choice, to_delete), n_des)
 
 alter_img_neurons:: Int -> Int -> Int -> Net -> IO (Net,Net)
@@ -166,7 +170,7 @@ intersection :: [(Int,Int)] -> [(Int,Int)] -> [(Int,Int)]
 intersection xs ys = filter(\x -> elem x xs) ys
 
 design_to_net :: Design -> Net
-design_to_net design = Net $ map(map(\(_,ts) -> Node (0.0,0.0) ts )) layers
+design_to_net design = Net $ new_map(map(\(_,ts) -> Node (0.0,0.0) ts )) layers
                             where layers = to_layers 0 design []
 
 to_layers :: Int -> Design -> [Design] -> [Design]
@@ -218,7 +222,7 @@ draw_from_list ::Int -> Int -> (Int,Int)-> ([(Int,Int)],[(Int,Int)]) -> IO ([(In
 draw_from_list width 0 _ xs = return xs
 draw_from_list width _ _ (a,[]) = return (a,[])
 draw_from_list width n_cons pos nodes@(x,y) = do
-                                                            let ds = map (distance width pos) (snd nodes)
+                                                            let ds = new_map (distance width pos) (snd nodes)
                                                             let is = to_interval 0 ds
                                                             f <- randomRIO(0.0, last is)
                                                             let idx = get_index f is 0
@@ -234,20 +238,20 @@ connect_b pos fs = reset_list pos (pure fs) add_b_connection
 full_d_f_nodes :: (Int,Int) -> Design -> [(Int,Int)]
 full_d_f_nodes pos design = l_l ++ (filter (\x -> elem x fu_ns) f_ns)
     where
-        f_ns = f_nodes pos (map fst design)
+        f_ns = f_nodes pos (new_map fst design)
         fu_ns = full_nodes design
-        m =  maximum $ map fst f_ns
+        m =  maximum $ new_map fst f_ns
         l_l = filter(\(a,b) -> a == m) f_ns
 
 d_f_nodes :: (Int,Int) -> Design -> [(Int,Int)]
-d_f_nodes pos design = f_nodes pos (map fst  design)
+d_f_nodes pos design = f_nodes pos (new_map fst  design)
 
 full_d_b_nodes :: (Int,Int) -> Design -> ((Int,Int),[(Int,Int)])
 full_d_b_nodes pos design = ((0,m),result)
            where
-               b_ns = b_nodes pos (map fst design)
+               b_ns = b_nodes pos (new_map fst design)
                f_ns = full_nodes design
-               m =  maximum $ map snd $ filter(\(a,_) -> a == 0) b_ns
+               m =  maximum $ new_map snd $ filter(\(a,_) -> a == 0) b_ns
                f_l = filter(\x@(a,b) -> x /= (0,m) && a == 0) b_ns
                result = f_l ++ (filter (\x -> elem x f_ns) b_ns)
 
@@ -256,8 +260,8 @@ full_d_b_nodes pos design = ((0,m),result)
 d_b_nodes :: (Int,Int) -> Design -> ((Int,Int),[(Int,Int)])
 d_b_nodes pos design = ((0,m),filter(\x -> x /= (0,m)) b_ns)
            where
-               b_ns = b_nodes pos (map fst design)
-               m =  maximum $ map snd $ filter(\(a,_) -> a == 0) b_ns
+               b_ns = b_nodes pos (new_map fst design)
+               m =  maximum $ new_map snd $ filter(\(a,_) -> a == 0) b_ns
 
 reset_weights :: (Int,Int) -> Design -> IO Design
 reset_weights pos design = do
@@ -331,10 +335,10 @@ add_f_connection pos@(a,b) w ((x1,x2):xs) = D (\d -> (xs, add_to d ))
 
 
 remove_neuron:: (Int,Int) -> Design -> Design
-remove_neuron pos dsgn = map(\(a,b) -> if(a == pos) then (a,[]) else (a,b)) wp_dsgn
+remove_neuron pos dsgn = new_map(\(a,b) -> if(a == pos) then (a,[]) else (a,b)) wp_dsgn
               where
                   p_to = point_to pos dsgn
-                  funcs = map (\x -> remove_entry_at x pos) p_to
+                  funcs = new_map (\x -> remove_entry_at x pos) p_to
                   wp_dsgn = foldr (\f x -> f x) dsgn funcs
 
 remove_entry_at :: (Int,Int) -> (Int,Int) -> Design -> Design
@@ -353,39 +357,39 @@ remove_able_nodes dsgn = filter (\x-> is_remove_able x dsgn) $ full_nodes dsgn
 --the idea is after the removel of a node every node needs to have
 --an output-connection and an input connection.
 is_remove_able :: (Int,Int) -> Design -> Bool
-is_remove_able pos dsgn = and $ map (\x -> length x > 1) $ p_tos ++ p_ats
+is_remove_able pos dsgn = and $ new_map (\x -> length x > 1) $ p_tos ++ p_ats
                             where
-                                    bias_pos = last $ map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) dsgn
+                                    bias_pos = last $ new_map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) dsgn
                                     p_to = point_to pos dsgn
                                     p_at = point_at pos dsgn
-                                    p_tos = map (\x -> point_at x dsgn) p_to
-                                    p_ats = map(\z -> filter(\y -> y /= bias_pos) z) $ map(\x -> point_to x dsgn)  p_at
+                                    p_tos =new_map (\x -> point_at x dsgn) p_to
+                                    p_ats = new_map(\z -> filter(\y -> y /= bias_pos) z) $ map(\x -> point_to x dsgn)  p_at
 
 
 desconnect_able_nodes :: Design -> [(Int,Int)]
-desconnect_able_nodes dsgn = filter (\x-> posses_removable_connection x dsgn) $ map fst dsgn
+desconnect_able_nodes dsgn = filter (\x-> posses_removable_connection x dsgn) $ new_map fst dsgn
 
 posses_removable_connection :: (Int,Int) -> Design -> Bool
-posses_removable_connection pos design = or $ map (\x -> length x > 1) p_ats
+posses_removable_connection pos design = or $ new_map (\x -> length x > 1) p_ats
                                                             where
-                                                                bias_pos = last $ map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) design
+                                                                bias_pos = last $ new_map (\(x,_) -> x) $ filter (\((a,_),_) -> a == 0 ) design
                                                                 p_at = point_at pos design
-                                                                p_ats = map(\z -> filter(\y -> y /= bias_pos) z) $ map(\x -> point_to x design)  p_at
+                                                                p_ats = new_map(\z -> filter(\y -> y /= bias_pos) z) $ new_map(\x -> point_to x design)  p_at
 
 
 --which nodes from previos layers point to the node
 point_to ::  (Int,Int) -> Design -> [(Int,Int)]
-point_to (c,d) = map(fst) . filter (\((a,_),ts) -> elem (c-a-1,d)  (map(snd) ts) )
+point_to (c,d) = new_map(fst) . filter (\((a,_),ts) -> elem (c-a-1,d)  (map(snd) ts) )
 
 -- which nodes the node points to in following layers
 point_at :: (Int,Int) -> Design -> [(Int,Int)]
-point_at (a,b) = (\(_,ts) -> map(\(w,(c,d)) -> (c+a+1,d) ) ts) . head . filter(\x -> (a,b) == (fst x))
+point_at (a,b) = (\(_,ts) -> new_map(\(w,(c,d)) -> (c+a+1,d) ) ts) . head . filter(\x -> (a,b) == (fst x))
 
 
 filter_nodes :: ( ((Int,Int),[(Double,(Int,Int))]) -> Bool )  ->Design -> [(Int,Int)]
-filter_nodes f dsgn  = map(fst) $ filter f  n_dsgn
+filter_nodes f dsgn  =new_map(fst) $ filter f  n_dsgn
                 where
-                    m = maximum $ map(\((a,b),_) -> a) dsgn
+                    m = maximum $ new_map(\((a,b),_) -> a) dsgn
                     n_dsgn = filter(\((a,b),_) -> a /= m && a /= 0) dsgn
 
 
@@ -403,14 +407,14 @@ poss_twin (x:xs) = if elem x xs then True else poss_twin xs
 check_entries :: Net -> String
 check_entries net = concatMap showlayer1 checks
                         where
-                              checks = map ( map (\(Node _ ls) -> (poss_twin (map (\(a,b) -> b)  ls ) ) ) )  (app net)
+                              checks = new_map ( map (\(Node _ ls) -> (poss_twin (map (\(a,b) -> b)  ls ) ) ) )  (app net)
                               showlayer1 x = (concatMap (\a -> if a then "True\n" else "False\n")  x) ++"\n"
 
 instance Show Net where
     show net = concatMap showlayer (app net)
                                    where
-                                       nodeMap (Node x b) =  "N " ++ show x ++ " " ++ show (map snd b) ++ "\n"
-                                       showlayer x = (concatMap nodeMap x) ++ "\n"
+                                       nodeMap (Node x b) =  "N " ++ show x ++ " " ++ show (new_map snd b) ++ "\n"
+                                       showlayer x = (concat (new_map nodeMap x)) ++ "\n"
 
 app2 :: Net2 a -> [[Node2 a]]
 app2 (Net2 b) = b
@@ -429,15 +433,15 @@ net_to_design  net = zipWith(\(Node _ ts) x -> (x,ts) ) (concat nodes) (concat i
                     n = length nodes
                     m = length (head nodes)
                     fst_layer = zip (repeat 0) [0..m-1]
-                    ids = fst_layer : ( map( \x -> zip (repeat x) [0..(m-2)] ) [1..(n-1)] )
+                    ids = fst_layer : ( new_map( \x -> zip (repeat x) [0..(m-2)] ) [1..(n-1)] )
 
 generate_fully_connected_net :: Int -> Int -> IO Net
 generate_fully_connected_net width depth =
                                                 do
                                                     let net = empty_net width depth
-                                                    weights <- sequ $ map(sequ) $ replicate depth (replicate width (normal))
+                                                    weights <- sequ $ new_map(sequ) $ replicate depth (replicate width (normal))
                                                     let next_layers = replicate depth  $zip (repeat (0::Int)) [0..(width-1)]
-                                                    let cons =  map (replicate (width)) $ zipWith (zip) weights next_layers
+                                                    let cons =  new_map (replicate (width)) $ zipWith (zip) weights next_layers
                                                     let n_net = Net2 $ zipWith(\c d -> zipWith( \(Node2 a _ ) b -> Node2 a b) c d) (app2 net) cons
                                                     r_net <- add_bias n_net [(a,b)| a <-[1..(depth-1)], b <-[0..(width-1)]  ]
                                                     let net' = convert_net2_net r_net
@@ -490,7 +494,7 @@ generate_random_nodes :: Net2 a -> Int -> IO [(Int,Int)]
 generate_random_nodes net nr = do
                                                       let m = length $ head $ app2 net
                                                       let  n =  length $ app2 net
-                                                      let  list = concatMap (\n' ->  zip (replicate m n' ) [0..]) [1..n-2]
+                                                      let  list = concat $ new_map (\n' ->  zip (replicate m n' ) [0..]) [1..n-2]
                                                       (xs,_) <- draw_n_pos nr ([] , list)
                                                       return $ generate_nodes net xs
 
@@ -529,11 +533,11 @@ b_nodes :: (Int,Int) -> [(Int,Int)] -> [(Int,Int)]
 b_nodes (a,b) nodes = filter(\(c,d) -> c < a ) nodes
 
 taken :: [((Int,Int),[(Double,(Int,Int))])] -> (Int,Int) -> [(Int,Int)]
-taken (x:xs) (a,b) = if fst x == (a,b) then map(\(d,(c,e))-> (a+c+1,e)) (snd x) else taken xs (a,b)
+taken (x:xs) (a,b) = if fst x == (a,b) then new_map(\(d,(c,e))-> (a+c+1,e)) (snd x) else taken xs (a,b)
 
 
 gen_empty_design :: [(Int,Int)] -> [((Int,Int),[(Double,(Int,Int))])]
-gen_empty_design xs = map(\(a,b) -> ((a,b),[])) xs
+gen_empty_design xs = new_map(\(a,b) -> ((a,b),[])) xs
 
 add_neighbours:: Int -> [(Int,Int)] -> Int -> IO [((Int,Int),[(Double,(Int,Int))])]
 add_neighbours width nodes nr_con = do
@@ -563,13 +567,13 @@ draw_many width  ns@(no:nodes) n n_con = do
 
 draw_f_neighbour ::Int -> [(Int,Int)] -> (Int,Int) -> IO ([(Int,Int)],(Int,Int), [(Double, (Int,Int))])
 draw_f_neighbour width nodes n@(b,a) = let
-                                                ds = map(\x -> distance width n x) nodes
+                                                ds = new_map(\x -> distance width n x) nodes
                                                 is = to_interval 0 ds
                                                 in do
                                                         f <- randomRIO(0.0, last is)
                                                         w <- normal
                                                         let idx = get_index f is 0
-                                                        let m = maximum $ map(\(d,_) -> d) nodes
+                                                        let m = maximum $ new_map(\(d,_) -> d) nodes
                                                         if m == b then
                                                             return (nodes,(b,a),[]) else
                                                             return $ gen_f_entry n nodes idx w
@@ -596,7 +600,7 @@ to_design (x@(a,b):xs) e@(_,c,d) = if a == c then (a,b++d):n_xs else x:n_xs
 draw_b_neighbour :: Int -> [(Int,Int)] -> (Int,Int) -> IO ([(Int,Int)],(Int,Int), [(Double, (Int,Int))])
 draw_b_neighbour width nodes (0,a) = return (nodes,(0,a),[])
 draw_b_neighbour width nodes n = let
-                                                    ds = map(\x -> distance width n x) nodes
+                                                    ds = new_map(\x -> distance width n x) nodes
                                                     is = to_interval 0 ds
                                                     in do
                                                         f <- randomRIO(0.0, last is)
@@ -630,13 +634,13 @@ app_design net2  (((n,m),cons):cs) = app_design n_net cs
 
 instance Functor Net2 where
             -- fmap (a -> b)  -> Net a -> Net b
-            fmap g net =Net2 $  map  (map (\(Node2 a t) -> Node2 (g a) t)) (app2 net)
+            fmap g net =Net2 $  new_map  (map (\(Node2 a t) -> Node2 (g a) t)) (app2 net)
 
 instance Applicative Net2 where
   -- pure :: a -> Net2 a
       pure a =Net2  [[Node2 a []]]
   -- (<*>) :: (Net2 (a -> b) -> Net2 a -> Net2 b)
-      gs <*> net =  Net2 ( concatMap (\fs ->  map (\xs ->  [Node2 (f x) ts | (Node2 f  _) <- fs,  (Node2 x ts) <- xs ] ) net') gs' )
+      gs <*> net =  Net2 ( concat ( new_map (\fs ->  map (\xs ->  [Node2 (f x) ts | (Node2 f  _) <- fs,  (Node2 x ts) <- xs ] ) net') gs' ))
                             where
                                 gs' = app2 gs
                                 net' = app2 net
@@ -656,7 +660,7 @@ ntail :: Net2 a -> Net2 a
 ntail  net = Net2 $ tail (app2 net)
 
 to_net :: [a] -> Net2 a
-to_net  xs = Net2 $ [ map(\x -> Node2 x [] ) xs]
+to_net  xs = Net2 $ [ new_map(\x -> Node2 x [] ) xs]
 
 set_input2 :: Net2 a -> [a] -> Net2 a
 set_input2  net input = nappend n_h t
@@ -680,7 +684,7 @@ simple_net2 = Net2 [
                                ]
 
 convert_net2_net :: Net2 Double -> Net
-convert_net2_net net2 = Net $ map (map( \(Node2 a xs) -> Node (a,0) xs))  $app2 net2
+convert_net2_net net2 = Net $ new_map (map( \(Node2 a xs) -> Node (a,0) xs))  $app2 net2
 
 showNet :: (Show a)  =>  Net2 a -> IO ()
 showNet net = putStrLn $ "Network\n" ++  ( concat ([ "[" ++ showNodes xs ++"] \n" | xs <- (app2 net)]) ) ++ "\n"
@@ -698,7 +702,7 @@ change_out_design nr_nodes design = do
                                              let  last_l = last_layer_design design
                                              let (m,_) = head last_l
                                              let  (keep,go) = splitAt nr_nodes last_l
-                                             let  p_tos = to_set $ concatMap (\x -> point_to x design) go
+                                             let  p_tos = to_set $ concat $ new_map (\x -> point_to x design) go
                                              connect <- (reconnect_list (pure p_tos) (reconnect (keep,go) ) )
                                              let (_,n_des) = (appD connect) design
                                              return $ filter (\((a,b),_) -> a /= m || b < nr_nodes) n_des
@@ -724,7 +728,7 @@ reconnect (keep,go) = do
                                 ((p@(p1,p2),ts):xs) -> if p == p_to then ((p, new_ts) : (f p_to xs)) else (p, ts) : (f p_to xs)
                                     where
                                          (k1,k2) = keep !! idx
-                                         n_ts = map(\(w, q@(q1,q2)) -> if elem (p1+q1+1,q2) go then (w, (q1,k2) ) else (w,q) ) ts
+                                         n_ts = new_map(\(w, q@(q1,q2)) -> if elem (p1+q1+1,q2) go then (w, (q1,k2) ) else (w,q) ) ts
                                          new_ts = set_by (\(_,e1) (_,e2) ->  e1 == e2) n_ts
                         return $(\(p_to:p_tos) ->(D (\d -> (p_tos, f p_to d))))
 
@@ -734,5 +738,5 @@ set_by _ []     = []
 set_by f (x:xs) = x: set_by f  (filter (not . (f x)) xs)
 
 last_layer_design :: Design -> [(Int,Int)]
-last_layer_design design = map (\(p,_)-> p) $ filter (\((a,_),_) -> a == m) design
-    where m = maximum $ map( \((a,b),_) -> a) design
+last_layer_design design = new_map (\(p,_)-> p) $ filter (\((a,_),_) -> a == m) design
+    where m = maximum $ new_map( \((a,b),_) -> a) design

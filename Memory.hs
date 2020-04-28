@@ -5,28 +5,38 @@ module Memory
 )
 where
 
+import           Control.Parallel            (par, pseq)
+import           Control.Parallel.Strategies
 import           Data.List
 import           Data.List.Split
-import           Data.Text       (strip)
+import           Data.Text                   (strip)
 import           Network
 import           Types
+
+import           Data.Word
+
+
+new_map = parMap rpar
+
+
 
 save_net :: String -> Net ->IO()
 save_net filename net = do
                         let nodes = app net
-                        let nodes' = map ( map (\(Node _ b) -> b)) nodes
-                        writeFile filename $ encode nodes'
+                        let nodes' = new_map ( map (\(Node _ b) -> b)) nodes
+                        let  ns = encode $! nodes'
+                        writeFile filename  ns
 
 load_net :: String -> IO Net
 load_net filename = do
                         file <- readFile filename
-                        let nodes' = decode file
+                        let nodes' = decode  file
                         let nodes = map( map(\b -> Node (0.0,0.0) b)) nodes'
                         return $ Net nodes
 
 
 encode :: [[[(Double,(Int,Int))]]] -> String
-encode = concatMap encode_layer
+encode = concat . (new_map encode_layer)
         where
              encode_layer =  ("l " ++) . ( concatMap encode_node )
              encode_node x =  "n " ++  concatMap encode_entry x

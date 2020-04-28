@@ -42,8 +42,8 @@ draw_mnist_training_batch n = sequence $ replicate n draw_mnist_training
 
 draw_mnist_training :: IO ([[Double]] , [Double])
 draw_mnist_training = do
-  s <- decompress <$> BS.readFile "mnist/train-images-idx3-ubyte.gz"
-  l <- decompress <$> BS.readFile "mnist/train-labels-idx1-ubyte.gz"
+  s <- s'
+  l <- l'
   n <- (`mod` 60000) <$> randomIO
   let img =  [(fromIntegral . BS.index s . (n*28^2 + 16 + r*28 +)) <$> [0..27] | r <- [0..27]]
   let one_hot = to_one_hot $ fromIntegral (  BS.index l (n + 8))

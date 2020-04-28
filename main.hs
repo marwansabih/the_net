@@ -36,11 +36,15 @@ run_and_save_image :: Int -> String -> (([[Double]], [[Double]]) -> Net -> Doubl
 run_and_save_image 0 _ _  net _ = return net
 run_and_save_image times filename f  net s = do
                                                                set <- draw_mnist_training_batch 1000
+                                                               --set <- mnist_set
                                                                let the_set = format set
                                                                print "start training"
                                                                net <- f the_set net s
                                                                print "start saving"
                                                                save_net filename net
+                                                               --if ( (times < 1000) && (mod times 100 == 0) )
+                                                               --   then save_net filename net
+                                                               --   else print "not saving"
                                                                run_and_save_image  (times-1) filename f net s
 
 
@@ -66,51 +70,14 @@ format xs = format' xs ([],[])
 
 format' :: [([[Double]], [Double])] -> ([[Double]], [[Double]]) -> ([[Double]], [[Double]])
 format' [] found           = found
-format' ((a,b):xs) (as,bs) = ( ( map ((1.0/255.0)*) (concat a) ) :as, b:bs)
+format' ((a,b):xs) (as,bs) =format' xs  ( ( map ((1.0/255.0)*) (concat a) ) :as, b:bs)
 
 main::IO()
 main = do
-          -- Example 1: Best fully connected net out of 12 - afterwards trained
-          (inp,outs) <- dat
-          -- find_best_fully_connected_net nr_nets training_steps bs nr_steps width depth sample s
-          --best_f_net <- find_best_fully_connected_net 20 100 10  7 6 (inp,outs) 0.001
-          -- training_batches nr_times bs net sample s
-          --trained_f_net <- training_batches 100000 10 best_f_net (inp,outs) 0.001
-          putStrLn "Fully Connected Network"
-          putStr "Prediction of first input from sample: "
-          --print $ output trained_f_net (inp !! 0)
-          putStr "Expected Output: "
-          print  $ outs !! 0
-
-         -- Example 2: a random network is created and trained
-         -- alternative for finding a good network:
-         --  find_best_random_net nr_nets training_steps bs width depth nr_neuron nr_con sample s
-         -- alternatives for training:
-         -- update_random_net nr_times nr_trainings bs nr_alt_neuron nr_con sample net s
-         -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          -- random_net <- generate_random_net 7 10 30 4
           getCurrentTime >>= print
-          --random_net <- generate_image_net 28 28 5 10 200 10
+          random_net <- generate_image_net 28 28 5 10 75 10
+          --random_net <-load_net "image_net"
           getCurrentTime >>= print
-          random_net <- load_net "image_net"
-          --let g = update_random_net_classic 28 1 100 10 20 7
-          --let f = update_random_net_con_classic 5 1000 2 30
-          let f = (\x y z -> training_batches_classic 1000 2 y x z)
-          trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.01
-          --random_net <- load_net "change_able_net"
-          --print random_net
-          --output_graph node_radius filename net
-          --output_graph 30 "neuron_3cons.png"  random_net
-          -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          -- let f = update_add_net_con 5 1000 10 4 (inp,outs)
-          -- let g = update_del_net_con 5 1000 10 1 (inp,outs)
-          --let f = update_random_net_con 5 100 10 4  (inp,outs)
-          --let h = update_random_net 5 100 10 1 4  (inp,outs)
-          --let g =(\x y -> training_batches 100 10 x (inp,outs) y)
-          --trained_random_net <- run_and_save_two 1000 "change_able_net" f f random_net  0.001
-          --trained_random_net <- run_and_save 3000 "saved_net_4_con_n" g random_net  0.0001
-          putStrLn "Random Network"
-          putStr "Prediction of first input from sample: "
-          --print $ output trained_random_net (inp !! 0)
-          putStr "Expected Output: "
-          print  $ outs !! 0
+          let f = (\x y z -> training_batches_classic 5 2 y x z)
+          trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.001
+          print "hi"
