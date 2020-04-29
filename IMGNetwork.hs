@@ -410,11 +410,6 @@ check_entries net = concatMap showlayer1 checks
                               checks = new_map ( map (\(Node _ ls) -> (poss_twin (map (\(a,b) -> b)  ls ) ) ) )  (app net)
                               showlayer1 x = (concatMap (\a -> if a then "True\n" else "False\n")  x) ++"\n"
 
-instance Show Net where
-    show net = concatMap showlayer (app net)
-                                   where
-                                       nodeMap (Node x b) =  "N " ++ show x ++ " " ++ show (new_map snd b) ++ "\n"
-                                       showlayer x = (concat (new_map nodeMap x)) ++ "\n"
 
 app2 :: Net2 a -> [[Node2 a]]
 app2 (Net2 b) = b

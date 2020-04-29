@@ -1,3 +1,4 @@
+import           Backpropagation
 import           Data
 import           Data.Time.Clock (diffUTCTime, getCurrentTime)
 import           Graphprinter
@@ -75,9 +76,10 @@ format' ((a,b):xs) (as,bs) =format' xs  ( ( map ((1.0/255.0)*) (concat a) ) :as,
 main::IO()
 main = do
           getCurrentTime >>= print
-          random_net <- generate_image_net 28 28 5 10 75 10
-          --random_net <-load_net "image_net"
+          random_net <- generate_image_net 28 28 50 10 100 10
           getCurrentTime >>= print
-          let f = (\x y z -> training_batches_classic 5 2 y x z)
+          let f x y = training_batches_classic 100 2 y x
           trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.001
-          print "hi"
+          (img, num) <-draw_mnist_test 10
+          let result = output_classic trained_random_net (concat img)
+          render_mnist (img, result)

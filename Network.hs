@@ -6,7 +6,9 @@ module Network
         adding_connections,
         generate_fully_connected_net,
         generate_random_net,
-        net_to_design
+        net_to_design,
+        net_to_simple_net,
+        simple_net_to_net
 )
 where
 
@@ -591,11 +593,63 @@ draw_b_neighbours (n:nodes) a_nodes design = do
                                                                   let n_design = to_design design x
                                                                   draw_b_neighbours nodes a_nodes n_design
 
+
+
 to_design :: [((Int,Int),[(Double,(Int,Int))])] -> ([(Int,Int)],(Int,Int), [(Double, (Int,Int))]) -> [((Int,Int),[(Double,(Int,Int))])]
 to_design [] _ = []
 to_design (x@(a,b):xs) e@(_,c,d) = if a == c then (a,b++d):n_xs else x:n_xs
                                                 where
                                                     n_xs = to_design xs e
+
+simple_net_to_net :: Design -> Net -> Net
+simple_net_to_net  short_design net = design_to_net $ to_normal_design short_design (net_to_design net)
+
+net_to_simple_net :: Net -> (Design, Net)
+net_to_simple_net net = (short_design, design_to_net simple_design)
+                       where
+                           design = net_to_design net
+                           (short_design,simple_design) = to_simple_design design
+
+
+
+to_simple_design :: Design -> (Design,Design)
+to_simple_design design = (short_design,simple_design)
+                                    where
+                                        m = maximum $ new_map (\((x,_),_) -> x) design
+                                        last_layer = filter (\((a,_),_) -> a == m) design
+                                        short_design = (filter(\(a,b) -> b /= [] || snd a == 0 && fst a /= m) design) ++ last_layer
+                                        simple_design = new_map (\((a,b),ts) -> ((a,b), new_map(\(w,(c,d)) -> (w,to_simple_idx (a,b) (c,d) short_design))  ts)) short_design
+
+
+to_normal_design :: Design -> Design -> Design
+to_normal_design short_design simple_design = add_d_entries n_des e_d
+                   where
+                            m = maximum $ new_map (\((x,_),_) -> x) short_design
+                            last_layer = filter (\((a,_),_) -> a == m) short_design
+                            n = length $ filter(\((x,_),_) -> x == 0) short_design
+                            e_d =  (map(\a -> (a,[])) $ (zip (repeat 0) [0..n-1])  ++  (concat ( new_map(\x ->  zip (repeat x) [0..(n-2)]) [1..(m-1)] )))  ++ last_layer
+                            n_des = zipWith(\(x,ts) (_,ts') -> (x, zipWith(\(p,(_,t)) (_,(w,_)) -> (p,(w,t) ) ) ts ts'  )) short_design simple_design
+
+add_d_entries :: Design -> Design -> Design
+add_d_entries [] e_d = e_d
+add_d_entries (s:short_design) e_d = add_d_entries short_design  $ add_d_entry s e_d
+
+
+add_d_entry _ [] = []
+add_d_entry (a,ts) ((b,ts'):xs) = if (a == b)
+                                                  then (a,ts) : ( add_d_entry (a,ts) xs)
+                                                  else (b,ts') : ( add_d_entry (a,ts) xs)
+
+
+to_simple_idx :: (Int,Int) -> (Int,Int) -> Design -> (Int,Int)
+to_simple_idx  (a,b) (c,d) design = (c,n_b)
+                                            where
+                                                goal_layer = filter(\((x,_),_) -> x == a+c +1) design
+                                                n_b = find_idx 0 d goal_layer
+
+
+find_idx :: Int -> Int -> Design -> Int
+find_idx n b (((_,d),_):xs) = if b == d then n else find_idx (n+1) b xs
 
 draw_b_neighbour :: [(Int,Int)] -> (Int,Int) -> IO ([(Int,Int)],(Int,Int), [(Double, (Int,Int))])
 draw_b_neighbour nodes (0,a) = return (nodes,(0,a),[])
@@ -800,3 +854,33 @@ test_alter_connections = do
     print net
     print r_net
     print n_net
+
+test_to_simple_design :: IO()
+test_to_simple_design = do
+    net <- generate_random_net 4 5 3 4
+    print net
+    let design = net_to_design net
+    let (short_design,simple_design) = to_simple_design design
+    print $ design_to_net short_design
+    print $ design_to_net simple_design
+    print $ short_design
+    print $  to_normal_design short_design (net_to_design $ design_to_net simple_design)
+
+test_to_normal_design :: IO()
+test_to_normal_design = do
+    net <- generate_random_net 4 5 3 4
+    print net
+    let design = net_to_design net
+    print design
+    let (short_design,simple_design) = to_simple_design design
+    let n_des =  to_normal_design short_design (net_to_design $ design_to_net simple_design)
+    print $  n_des
+    print net
+    print $ design_to_net n_des
+
+test_net_to_net :: IO()
+test_net_to_net = do
+    net <- generate_random_net 4 5 3 4
+    print net
+    let (short_design, simple_net) =  net_to_simple_net net
+    print $ simple_net_to_net short_design simple_net

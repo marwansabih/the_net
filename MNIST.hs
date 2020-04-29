@@ -13,12 +13,18 @@ import qualified Data.ByteString.Lazy   as BS
 import           Data.Functor
 import           System.Random
 
+import           Data.List              (maximumBy)
+import           Data.Ord               (comparing)
+
+maxIndex :: Ord a => [a] -> Int
+maxIndex = fst . maximumBy (comparing snd) . zip [0..]
+
 render n = let s = " .:oO@" in s !! (floor  n * length s `div` 256)
 
 render_mnist :: ([[Double]] , [Double]) -> IO()
 render_mnist (img, nr) = do
                           putStr $ unlines $ map ( map render)  img
-                          print $ nr
+                          print $ maxIndex nr
 
 s' = decompress <$> BS.readFile "mnist/train-images-idx3-ubyte.gz"
 l' = decompress <$> BS.readFile "mnist/train-labels-idx1-ubyte.gz"
