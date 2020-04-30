@@ -76,9 +76,13 @@ format' ((a,b):xs) (as,bs) =format' xs  ( ( map ((1.0/255.0)*) (concat a) ) :as,
 main::IO()
 main = do
           getCurrentTime >>= print
-          random_net <- generate_image_net 28 28 50 10 100 10
+          --random_net <- generate_image_net 28 28 50 10 100 10
+          random_net <- load_net "image_net"
           getCurrentTime >>= print
-          let f x y = training_batches_classic 100 2 y x
+          -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
+          -- update_random_net_con_classic nr_times nr_trainings bs nr_con sample net s
+          --let f x y = update_add_net_con_classic --training_batches_classic 100 2 y x
+          let f = update_random_net_con_classic 1 100 2 10
           trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.001
           (img, num) <-draw_mnist_test 10
           let result = output_classic trained_random_net (concat img)
