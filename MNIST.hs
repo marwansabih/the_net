@@ -50,7 +50,7 @@ draw_mnist_training :: IO ([[Double]] , [Double])
 draw_mnist_training = do
   s <- s'
   l <- l'
-  n <- (`mod` 1000) <$> randomIO
+  n <- (`mod` 60000) <$> randomIO
   let img =  [(fromIntegral . BS.index s . (n*28^2 + 16 + r*28 +)) <$> [0..27] | r <- [0..27]]
   let one_hot = to_one_hot $ fromIntegral (  BS.index l (n + 8))
   return (img, one_hot)

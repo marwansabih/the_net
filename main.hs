@@ -36,8 +36,8 @@ import           Types
 run_and_save_image :: Int -> String -> (([[Double]], [[Double]]) -> Net -> Double ->IO Net) -> Net -> Double -> IO Net
 run_and_save_image 0 _ _  net _ = return net
 run_and_save_image times filename f  net s = do
-                                                               --set <- draw_mnist_training_batch 1000
-                                                               set <- mnist_set
+                                                               set <- draw_mnist_training_batch 1000
+                                                               --set <- mnist_set
                                                                let the_set = format set
                                                                print "start training"
                                                                net' <- f the_set net s
