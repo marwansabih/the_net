@@ -31,7 +31,7 @@ training_batches_classic' nr_times bs net sample s = do
                                                             (inp,out) <- get_random_batch bs sample
                                                             let net' = training_batch_classic net sample (s / fromIntegral bs)
                                                             getCurrentTime >>= print
-                                                            print $ calculate_error net' $ n_from_sample 10 sample
+                                                            print $ calculate_error net' $ sample
                                                             print nr_times
                                                             training_batches_classic' (nr_times-1) bs net' sample s
 
@@ -50,7 +50,7 @@ calculate_error :: Net ->  ([[Double]],[[Double]])   ->Double
 calculate_error net (inp,out) = (sum dist) / ( fromIntegral ( length out ))
                                         where
                                             preds = map (output_classic net) inp
-                                            dist = concat $ zipWith( zipWith(\a b -> (a-b)^2)) preds out
+                                            dist = zipWith( \x y -> 1 - sum ( zipWith(\a b -> (a*b)) x y )) preds out
 
 
 

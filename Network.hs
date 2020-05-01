@@ -1,6 +1,7 @@
 module Network
 (
         alter_neurons,
+        analyse_network,
         alter_connections,
         removing_connections,
         adding_connections,
@@ -22,6 +23,14 @@ import           System.Random
 import           Types
 
 new_map = parMap rpar
+
+analyse_network :: Net -> IO()
+analyse_network net = do
+                                     putStr "Number of neurons: "
+                                     print $ sum $ map length $ app $ snd $ net_to_simple_net net
+                                     let nr_cons (Node x ts) = length ts
+                                     putStr "Number of connections: "
+                                     print $ sum $ concatMap( map nr_cons) $ app net
 
 --using Box-Muller for generation of normal distribution
 normal :: IO Double

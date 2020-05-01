@@ -36,17 +36,17 @@ import           Types
 run_and_save_image :: Int -> String -> (([[Double]], [[Double]]) -> Net -> Double ->IO Net) -> Net -> Double -> IO Net
 run_and_save_image 0 _ _  net _ = return net
 run_and_save_image times filename f  net s = do
-                                                               set <- draw_mnist_training_batch 1000
-                                                               --set <- mnist_set
+                                                               --set <- draw_mnist_training_batch 1000
+                                                               set <- mnist_set
                                                                let the_set = format set
                                                                print "start training"
-                                                               net <- f the_set net s
+                                                               net' <- f the_set net s
                                                                print "start saving"
-                                                               save_net filename net
+                                                               save_net filename net'
                                                                --if ( (times < 1000) && (mod times 100 == 0) )
                                                                --   then save_net filename net
                                                                --   else print "not saving"
-                                                               run_and_save_image  (times-1) filename f net s
+                                                               run_and_save_image  (times-1) filename f net' s
 
 
 run_and_save :: Int -> String -> (Net -> Double ->IO Net) -> Net -> Double -> IO Net
@@ -77,12 +77,13 @@ main::IO()
 main = do
           getCurrentTime >>= print
           --random_net <- generate_image_net 28 28 50 10 100 10
-          random_net <- load_net "image_net"
+          random_net <- load_net  "image_net" --"image_net_2020-04-30_23-00"
           getCurrentTime >>= print
+          analyse_network random_net
           -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
           -- update_random_net_con_classic nr_times nr_trainings bs nr_con sample net s
-          --let f x y = update_add_net_con_classic --training_batches_classic 100 2 y x
-          let f = update_random_net_con_classic 1 100 2 10
+          let f x y = training_batches_classic 100 2 y x
+          --let f = update_random_net_con_classic 1 100 2 10
           trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.001
           (img, num) <-draw_mnist_test 10
           let result = output_classic trained_random_net (concat img)
