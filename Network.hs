@@ -637,7 +637,7 @@ to_normal_design short_design simple_design = add_d_entries n_des e_d
                             last_layer = filter (\((a,_),_) -> a == m) short_design
                             n = length $ filter(\((x,_),_) -> x == 0) short_design
                             e_d =  (map(\a -> (a,[])) $ (zip (repeat 0) [0..n-1])  ++  (concat ( new_map(\x ->  zip (repeat x) [0..(n-2)]) [1..(m-1)] )))  ++ last_layer
-                            n_des = zipWith(\(x,ts) (_,ts') -> (x, zipWith(\(p,(_,t)) (_,(w,_)) -> (p,(w,t) ) ) ts ts'  )) short_design simple_design
+                            n_des = zipWith(\(x,ts) (_,ts') -> (x, zipWith(\(_,t) (w,_) -> (w,t ) ) ts ts'  )) short_design simple_design
 
 add_d_entries :: Design -> Design -> Design
 add_d_entries [] e_d = e_d

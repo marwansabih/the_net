@@ -82,7 +82,7 @@ main = do
           analyse_network random_net
           -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
           -- update_random_net_con_classic nr_times nr_trainings bs nr_con sample net s
-          let f x y = training_batches_classic 100 2 y x
+          let f x y = training_batches_classic 3 2 y x
           --let f = update_random_net_con_classic 1 100 2 10
           trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.001
           (img, num) <-draw_mnist_test 10
