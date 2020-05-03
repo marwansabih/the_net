@@ -1,6 +1,7 @@
 module RunnerClassic
 (
         training_batches_classic,
+        training_normed_batches_classic,
         find_best_random_net_classic,
         update_random_net_classic,
         update_random_net_con_classic,
@@ -17,6 +18,21 @@ import           IMGNetwork
 import           Network
 import           Types
 
+training_normed_batches_classic :: Int -> Int -> Net -> ([[Double]],[[Double]]) -> Double -> IO Net
+training_normed_batches_classic nr_times bs net sample s = do
+                                                                                    let (short_design, simple_net) = net_to_simple_net net
+                                                                                    t_net <- training_normed_batches_classic' nr_times bs simple_net sample s
+                                                                                    return $ simple_net_to_net short_design t_net
+
+training_normed_batches_classic' :: Int -> Int -> Net -> ([[Double]],[[Double]]) -> Double -> IO Net
+training_normed_batches_classic' 0 _ net  _ _  = return net
+training_normed_batches_classic' nr_times bs net sample s = do
+                                                            (inp,out) <- get_random_batch bs sample
+                                                            let net' = training_normed_batch_classic net sample (s / fromIntegral bs)
+                                                            getCurrentTime >>= print
+                                                            print $ calculate_error net' $ n_from_sample 10 sample
+                                                            print nr_times
+                                                            training_normed_batches_classic' (nr_times-1) bs net' sample s
 
 
 training_batches_classic :: Int -> Int -> Net -> ([[Double]],[[Double]]) -> Double -> IO Net

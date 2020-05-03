@@ -6,6 +6,7 @@ import           Control.Parallel.Strategies
 import           Data.List
 import           Data.List.Split
 import           Data.Time
+import           Network
 import           System.Random
 import           Types
 
@@ -95,6 +96,13 @@ b_propagate_node (Node (a,v) ((w,(l,n)):ts)) layers = b_propagate_node (Node (a,
                                       (ks,(Node (_,d) _):ls) = splitAt n t
 
 
+training_normed_batch_classic :: Net -> ([[Double]], [[Double]]) -> Double -> Net
+training_normed_batch_classic  net set s =  foldr (\(i,t) net -> add_w net (get_gradient_net i t s) ) net n_set
+                                                   where
+                                                       n_set = (\(x,y) -> zip x y) set
+                                                       add_up = zipWith(\(w1, x) (w2, _) -> (w1+w2,x))
+                                                       add_w = apply(\(Node (a,z) ts) (Node (a',d) ts') -> Node (a,z) (add_up ts ts') )
+                                                       get_gradient_net = get_normed_gradient_classic net
 
 training_batch_classic :: Net -> ([[Double]], [[Double]]) -> Double -> Net
 training_batch_classic  net set s =  foldr (\(i,t) net -> add_w net (get_gradient_net i t s) ) net n_set
@@ -112,6 +120,19 @@ training_batch  net set s =  foldr (\(i,t) net -> add_w net (get_gradient_net i 
                                                        add_up = zipWith(\(w1, x) (w2, _) -> (w1+w2,x))
                                                        add_w = apply(\(Node (a,z) ts) (Node (a',d) ts') -> Node (a,z) (add_up ts ts') )
                                                        get_gradient_net = get_gradient net
+
+get_normed_gradient_classic :: Net -> [Double] -> [Double] ->  Double ->Net
+get_normed_gradient_classic net input targets s = multiply_weigths (s/norm) gradient
+                    where
+                         r_net = reset net
+                         i_net = set_input r_net input
+                         f_net' = f_propagate i_net
+                         f_net = apply_softmax f_net'
+                         d_net = set_last_deltas targets $ reset' f_net
+                         b_net = b_propagate d_net
+                         c_net = apply (\(Node (a,z) ts) (Node (a',d) ts') -> Node (z,d) ts) f_net b_net
+                         gradient = get_gradient_f' c_net
+                         norm = get_norm gradient
 
 get_gradient_classic :: Net -> [Double] -> [Double] ->  Double ->Net
 get_gradient_classic net input targets s = get_gradient_f s c_net
@@ -164,9 +185,42 @@ update_weights_node (Node (z',d) ts) s layers = Node (z',d) n_ts
                                                                     zs = new_map (\(_, (l,n)) -> find_z layers (l,n)) ts
                                                                     n_ts = zipWith(\(w, t) z -> (w- (s*z*d), t)) ts zs
 
+
+get_gradient_f' ::  Net  -> Net
+get_gradient_f'  (Net [a]) = Net  [a]
+get_gradient_f'  (Net (x:xs)) = Net $ (get_gradient_nodes' x  xs) : (app $ get_gradient_f'  (Net xs))
+
 get_gradient_f :: Double -> Net  -> Net
 get_gradient_f s (Net [a]) = Net  [a]
 get_gradient_f s (Net (x:xs)) = Net $ (get_gradient_nodes x s xs) : (app $ get_gradient_f s (Net xs))
+
+
+multiply_weigths :: Double -> Net -> Net
+multiply_weigths norm net = Net n_layers
+                where
+                    layers = app net
+                    n_layers = map ( map (\(Node x ts)-> Node x (map (\(w,t) -> (norm*w,t) ) ts  ))) layers
+
+get_norm :: Net -> Double
+get_norm net = sqrt $ sum $ new_map (\x -> x*x) weights
+                where
+                    weights = get_weigths net
+
+get_weigths :: Net -> [Double]
+get_weigths net = new_map (fst) all_ts
+                where
+                    layers = app net
+                    all_ts = concat $ new_map(\(Node _ ts) -> ts) $ concat layers
+
+get_gradient_nodes' :: [Node]  -> [[Node]] -> [Node]
+get_gradient_nodes'   xs layers = new_map (\x -> get_gradient_node' x  layers)  xs
+
+get_gradient_node' :: Node -> [[Node]] -> Node
+get_gradient_node' (Node (z',d) ts)  layers = Node (z',d) n_ts
+                                                                where
+                                                                    zs = new_map (\(_, (l,n)) -> find_z layers (l,n)) ts
+                                                                    n_ts = zipWith(\(w, t) z -> (- (z*d), t)) ts zs
+
 
 get_gradient_nodes :: [Node] -> Double -> [[Node]] -> [Node]
 get_gradient_nodes   xs s layers = new_map (\x -> get_gradient_node x s layers)  xs
@@ -197,3 +251,21 @@ get_random_batch' n (input, output) (f_input,f_output) = do
                                                     let n_is = is ++ fis
                                                     let n_os = fos ++ os
                                                     get_random_batch' (n-1) (n_is,n_os) (i:f_input, o:f_output)
+
+test_get_weigths :: IO()
+test_get_weigths = do
+                    net <- generate_random_net 4 4 4 3
+                    print $ get_weigths net
+
+test_get_norm :: IO()
+test_get_norm = do
+                    net <- generate_random_net 4 4 4 3
+                    let weigths = get_weigths net
+                    let norm = get_norm net
+                    print $ sum $ map(^2) $ map (1/norm*) weigths
+
+test_multiply_weigths :: IO()
+test_multiply_weigths = do
+                    net <- generate_random_net 4 4 4 3
+                    print $ get_weigths net
+                    print $ get_weigths $ multiply_weigths 10 net
