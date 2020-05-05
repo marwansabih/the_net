@@ -10,7 +10,9 @@ import           Runner
 import           RunnerClassic
 import           Types
 --ghc -O2 -optc-O3 -optc-ffast-math -o main.out main.hs -fprof-auto  -fprof-cafs -fforce-recomp
---ghc -O2 -optc-O3  -threaded -optc-ffast-math -fexcess-precision -funfolding-use-threshold=16 -o main.out main.hs  -fprof-auto  -fprof-cafs -fforce-recomp
+--ghc -O2 -optc-O3  -threaded -fexcess-precision -funfolding-use-threshold=16 -o main.out main.hs  -fprof-auto  -fprof-cafs -fforce-recomp
+
+
 
 -- training_batches nr_times bs net sample s
 -- find_best_fully_connected_net nr_nets training_steps bs width depth sample s
@@ -76,15 +78,15 @@ format' ((a,b):xs) (as,bs) =format' xs  ( ( map ((1.0/255.0)*) (concat a) ) :as,
 main::IO()
 main = do
           getCurrentTime >>= print
-          --random_net <- generate_image_net 28 28 50 10 100 40
-          random_net <- load_net  "image_net_test" --"image_net_2020-04-30_23-00"
+          random_net <- generate_image_net 28 28 200 10 4000 40
+          --random_net <- load_net  "image_net" --"image_net_2020-04-30_23-00"
           getCurrentTime >>= print
           analyse_network random_net
           -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
           -- update_random_net_con_classic nr_times nr_trainings bs nr_con sample net s
-          let f x y = training_normed_batches_classic 3 2 y x
+          let f x y = training_batches_classic 100 2 y x --training_normed_batches_classic 3 2 y x
           --let f = update_random_net_con_classic 1 100 2 10
-          trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.0001
+          trained_random_net <- run_and_save_image 1000 "image_net" f  random_net  0.01
           (img, num) <-draw_mnist_test 10
           let result = output_classic trained_random_net (concat img)
           render_mnist (img, result)

@@ -30,7 +30,7 @@ s' = decompress <$> BS.readFile "mnist/train-images-idx3-ubyte.gz"
 l' = decompress <$> BS.readFile "mnist/train-labels-idx1-ubyte.gz"
 
 mnist_set :: IO [([[Double]], [Double])]
-mnist_set =  sequence $  map (draw_mnist_training_by_nr s' l' ) [0..1000]
+mnist_set =  sequence $  map (draw_mnist_training_by_nr s' l' ) [0..10]
 
 
 

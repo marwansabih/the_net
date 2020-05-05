@@ -20,7 +20,7 @@ normal = do
                 d1 <- randomRIO(0::Double, 1::Double)
                 d2 <- randomRIO(0::Double, 1::Double)
                 let z = sqrt(-2.0 * (log d1)) * cos ( 2*pi*d2 )
-                return $ 0.001 * z
+                return $ 0.01 * z
 
 appD :: DT a -> Design -> (a,Design)
 appD (D dt) x = dt x
