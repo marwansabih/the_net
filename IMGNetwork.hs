@@ -445,19 +445,22 @@ generate_fully_connected_net width depth =
 generate_image_net:: Int -> Int -> Int -> Int -> Int -> Int -> IO Net
 generate_image_net img_width img_height depth nr_classes nr_neuron nr_con =
                                                         do
-                                                            net2 <- generate_random_net2 img_width img_height depth nr_neuron nr_con
+                                                            net2 <- generate_random_net2 img_width img_height depth nr_classes nr_neuron nr_con
                                                             let net' = convert_net2_net net2
-                                                            change_out_net nr_classes net'
+                                                            return net'
+                                                            --change_out_net nr_classes net'
 
-generate_random_net2:: Int ->Int -> Int -> Int -> Int -> IO (Net2 Double)
-generate_random_net2 img_width img_height depth nr_neuron nr_con =
+generate_random_net2:: Int ->Int -> Int -> Int -> Int -> Int -> IO (Net2 Double)
+generate_random_net2 img_width img_height depth nr_classes nr_neuron nr_con =
                                                             do
                                                                 let net = empty_net (img_width*img_height) depth
-                                                                nodes <- generate_random_nodes net nr_neuron
+                                                                nodes <- generate_random_nodes net nr_neuron nr_classes
                                                                 design <- add_neighbours img_width nodes nr_con
-                                                                let gen_net = app_design net design
-                                                                net <- add_bias gen_net nodes
-                                                                return net
+                                                                let gen_net = app_design net design --convert_net_net2 $ design_to_net design --app_design net design
+                                                                net' <- add_bias gen_net nodes
+                                                                let layers = app2 net'
+                                                                let net'' = Net2 $ (init layers) ++ [(take nr_classes (last layers))]
+                                                                return net''
 
 add_bias :: Net2 Double -> [(Int,Int)] -> IO (Net2 Double)
 add_bias net nodes  = do
@@ -477,21 +480,21 @@ randomList n = do
                     rs <- randomList (n-1)
                     return (r:rs)
 
-generate_nodes :: Net2 a -> [(Int, Int)] -> [(Int,Int)]
-generate_nodes net pos =   f_pos ++ pos ++ l_pos
+generate_nodes :: Net2 a -> [(Int, Int)] -> Int -> [(Int,Int)]
+generate_nodes net pos nr_classes =   f_pos ++ pos ++ l_pos
                                         where
                                             m = length $ head $ app2 net
                                             n = length$ app2 net
                                             f_pos =  zip (replicate m 0) (take m [0..])
-                                            l_pos =  zip (replicate m (n-1)) (take m [0..])
+                                            l_pos =  zip (replicate m (n-1)) (take nr_classes [0..])
 
-generate_random_nodes :: Net2 a -> Int -> IO [(Int,Int)]
-generate_random_nodes net nr = do
+generate_random_nodes :: Net2 a -> Int -> Int -> IO [(Int,Int)]
+generate_random_nodes net nr nr_classes = do
                                                       let m = length $ head $ app2 net
                                                       let  n =  length $ app2 net
                                                       let  list = concat $ new_map (\n' ->  zip (replicate m n' ) [0..]) [1..n-2]
                                                       (xs,_) <- draw_n_pos nr ([] , list)
-                                                      return $ generate_nodes net xs
+                                                      return $ generate_nodes net xs nr_classes
 
 draw_n_pos :: Int -> ([(Int,Int)],[(Int,Int)]) -> IO ([(Int,Int)],[(Int,Int)])
 draw_n_pos 0 found  = return found
@@ -557,7 +560,7 @@ draw_many width  ns@(no:nodes) n n_con = do
                                                                 x <- draw_f_neighbour width ns n
                                                                 let l = (\(a,b,c) -> a) x
                                                                 xs <- draw_many width l n (n_con-1)
-                                                                return (x : xs)
+                                                                return $! (x : xs)
 
 
 draw_f_neighbour ::Int -> [(Int,Int)] -> (Int,Int) -> IO ([(Int,Int)],(Int,Int), [(Double, (Int,Int))])
@@ -582,7 +585,7 @@ gen_f_entry (a,b) nodes idx w =  (n_nodes,(a,b), [(w, (c-a-1,d))])
 draw_b_neighbours :: Int -> [(Int,Int)] -> [(Int,Int)] -> [((Int,Int),[(Double,(Int,Int))])] -> IO [((Int,Int),[(Double,(Int,Int))])]
 draw_b_neighbours width [] nodes design = return design
 draw_b_neighbours width (n:nodes) a_nodes design = do
-                                                                  x <- draw_b_neighbour width (b_nodes n a_nodes) n
+                                                                  x <- id $! draw_b_neighbour width (b_nodes n a_nodes) n
                                                                   let n_design = to_design design x
                                                                   draw_b_neighbours width  nodes a_nodes n_design
 
@@ -681,6 +684,9 @@ simple_net2 = Net2 [
 convert_net2_net :: Net2 Double -> Net
 convert_net2_net net2 = Net $ new_map (map( \(Node2 a xs) -> Node (a,0) xs))  $app2 net2
 
+convert_net_net2 :: Net -> Net2 Double
+convert_net_net2 net = Net2 $ new_map (map( \(Node a xs) -> Node2 0 xs))  $app net
+
 showNet :: (Show a)  =>  Net2 a -> IO ()
 showNet net = putStrLn $ "Network\n" ++  ( concat ([ "[" ++ showNodes xs ++"] \n" | xs <- (app2 net)]) ) ++ "\n"
                             where showNodes xs = concat [ " N " ++ show x ++ " " ++ show a | Node2 x a <- xs]
@@ -735,3 +741,22 @@ set_by f (x:xs) = x: set_by f  (filter (not . (f x)) xs)
 last_layer_design :: Design -> [(Int,Int)]
 last_layer_design design = new_map (\(p,_)-> p) $ filter (\((a,_),_) -> a == m) design
     where m = maximum $ new_map( \((a,b),_) -> a) design
+
+test_generate_random_nodes :: IO()
+test_generate_random_nodes = do
+                    let net = empty_net 5 5
+                    generate_random_nodes net 5 3 >>= print
+
+instance Show Net where
+    show net = concatMap showlayer (app net)
+                                   where
+                                       nodeMap (Node x b) =  "N " ++ show x ++ " " ++ show (map snd b) ++ "\n"
+                                       showlayer x = (concatMap nodeMap x) ++ "\n"
+
+test_generate_image_net :: IO()
+test_generate_image_net = do
+                            net <- generate_image_net 3 3 5 3 3 4
+                            --generate_image_net img_width img_height depth nr_classes nr_neuron nr_con
+                            print net
+                            print $ last $ init $ app net
+                            print $ last $ app net
