@@ -30,17 +30,20 @@ reset :: Net -> Net
 reset (Net layers) = Net $ new_map (map (\(Node _ b) -> Node (0,0) b)) layers
 
 reset' :: Net -> Net
-reset' (Net layers) = Net $ new_map (map (\(Node (a,_) b) -> Node (a,0) b)) layers
+reset' (Net layers) = Net $ (new_map (map (\(Node (a,_) b) -> Node (a,0) b)) ( init layers)) ++ [last layers]
 
 relu :: Node -> Node
 relu (Node (x,_) ts) = if x >  0 then Node (x,x) ts else Node (x,0) ts
 
+copy :: Node -> Node
+copy (Node (x,_) ts) = Node (x,x) ts
+
 mult_relu' :: Node -> Node
-mult_relu' (Node (a,z) ts) = if (a > 0) then Node (a,a*z) ts else Node (a,0) ts
+mult_relu' (Node (a,z) ts) = if (a > 0) then Node (a,z) ts else Node (a,0) ts
 
 f_propagate :: Net  -> Net
-f_propagate (Net ([]))           = Net ([])
-f_propagate (Net ([a]))      = Net ([new_map relu a])
+f_propagate (Net [])           = Net []
+f_propagate (Net [a])      = Net ([new_map copy a])
 f_propagate (Net (input:layers)) = Net $ n_input :app (f_propagate ( Net n_layers))
                                                       where
                                                            n_input = new_map relu input
@@ -66,7 +69,7 @@ set_last_deltas :: [Double] -> Net -> Net
 set_last_deltas targets net = Net $ layers ++ [n_layer]
                                         where
                                           layers =  init $ app net
-                                          n_layer = zipWith(\t (Node (a,_) ts) ->  Node(a,a-t) ts) targets $ last $ app net
+                                          n_layer = zipWith(\t (Node (a,b) ts) ->  Node(a,b-t) ts) targets $ last $ app net
 
 
 apply_softmax :: Net -> Net
@@ -74,7 +77,7 @@ apply_softmax net = Net $ layers ++ [n_layer]
                                         where
                                           layers =  init $ app net
                                           s_m = softmax $ new_map(\(Node (a,_) _) -> a ) $ last $ app net
-                                          n_layer = zipWith(\a (Node (_,b) ts) ->  Node(a,b) ts) s_m $ last $ app net
+                                          n_layer = zipWith(\b (Node (a,_) ts) ->  Node(a,b) ts) s_m $ last $ app net
 
 
 b_propagate :: Net -> Net
@@ -183,7 +186,7 @@ update_weights_node :: Node -> Double -> [[Node]] -> Node
 update_weights_node (Node (z',d) ts) s layers = Node (z',d) n_ts
                                                                 where
                                                                     zs = new_map (\(_, (l,n)) -> find_z layers (l,n)) ts
-                                                                    n_ts = zipWith(\(w, t) z -> (w- (s*z*d), t)) ts zs
+                                                                    n_ts = zipWith(\(w, t) z -> (w- (s*z'*z), t)) ts zs
 
 
 get_gradient_f' ::  Net  -> Net
@@ -219,7 +222,7 @@ get_gradient_node' :: Node -> [[Node]] -> Node
 get_gradient_node' (Node (z',d) ts)  layers = Node (z',d) n_ts
                                                                 where
                                                                     zs = new_map (\(_, (l,n)) -> find_z layers (l,n)) ts
-                                                                    n_ts = zipWith(\(w, t) z -> (- (z*d), t)) ts zs
+                                                                    n_ts = zipWith(\(w, t) z -> (- (z'*z), t)) ts zs
 
 
 get_gradient_nodes :: [Node] -> Double -> [[Node]] -> [Node]
@@ -228,15 +231,15 @@ get_gradient_nodes   xs s layers = new_map (\x -> get_gradient_node x s layers) 
 get_gradient_node :: Node -> Double -> [[Node]] -> Node
 get_gradient_node (Node (z',d) ts) s layers = Node (z',d) n_ts
                                                                 where
-                                                                    zs = new_map (\(_, (l,n)) -> find_z layers (l,n)) ts
-                                                                    n_ts = zipWith(\(w, t) z -> (- (s*z*d), t)) ts zs
+                                                                    ds = new_map (\(_, (l,n)) -> find_z layers (l,n)) ts
+                                                                    n_ts = zipWith(\(w, t) d' -> (- (s*z'*d'), t)) ts ds
 
 
 find_z :: [[Node]] -> (Int,Int) -> Double
 find_z layers (l,n)  = z
                             where
                                 (xs,t:ys) = splitAt l layers
-                                (ks,(Node (z,_) _):ls) = splitAt n t
+                                (ks,(Node (_,z) _):ls) = splitAt n t
 
 
 get_random_batch :: Int -> ([[Double]],[[Double]])  -> IO ([[Double]],[[Double]])
@@ -269,3 +272,18 @@ test_multiply_weigths = do
                     net <- generate_random_net 4 4 4 3
                     print $ get_weigths net
                     print $ get_weigths $ multiply_weigths 10 net
+
+test_get_gradient_classic :: IO()
+test_get_gradient_classic = do
+    let net = Net [ [Node (0,0) [(1,(0,0))], Node (1,0) [(1,(0,1))]], [Node (0,0) [(1,(0,0))], Node (0,0) [(1,(0,1))]], [Node (0,0) [], Node (0,0) [] ] ]
+    let net' = set_input net [1,1]
+    let f_net = f_propagate net'
+    print $ app f_net
+    let net'' = reset' $ apply_softmax f_net
+    let b_net = b_propagate $ set_last_deltas [0,1] net''
+    let c_net = apply (\(Node (a,z) ts) (Node (a',d) ts') -> Node (z,d) ts) f_net b_net
+    print $ app b_net
+    print $ app c_net
+    let n_net = get_gradient_classic net [1,1] [0,1] 1
+    print $ app n_net
+    print "hi"

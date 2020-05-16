@@ -47,7 +47,7 @@ training_batches_classic' nr_times bs net sample s = do
                                                             (inp,out) <- get_random_batch bs sample
                                                             let net' = training_batch_classic net sample (s / fromIntegral bs)
                                                             getCurrentTime >>= print
-                                                            print $ calculate_error net' $ n_from_sample 10 sample
+                                                            print $ calculate_error net' $ sample
                                                             print nr_times
                                                             training_batches_classic' (nr_times-1) bs net' sample s
 
@@ -169,11 +169,11 @@ compete_batch nr_trainings bs s net1 net2 sample  = do
 
 train_measure_quality :: Int -> Int -> Double -> Net -> ([[Double]], [[Double]]) -> IO (Double, Net)
 train_measure_quality nr_trainings bs s net sample =  do
-                                            let predi1 = map (output_classic net) $ fst sample
-                                            let err1 = sum $ zipWith (\a b -> sum  $(zipWith( \x y -> (x-y)^2)) a b) predi1 (snd sample)
+                                            --let predi1 = map (output_classic net) $ fst sample
+                                            let err1 = calculate_error net sample
                                             n_net <- training_batches_classic nr_trainings bs net sample s
-                                            let predi = map (output_classic n_net) $ fst sample
-                                            let err =  sum $ zipWith (\a b -> sum  $(zipWith( \x y -> (x-y)^2)) a b) predi (snd sample)
+                                            --let predi = map (output_classic n_net) $ fst sample
+                                            let err =  calculate_error n_net sample--1/fromIntegral (length (snd sample)) $ sum $ zipWith (\a b -> 1 - (sum  $(zipWith( \x y -> x*y) a b))) predi (snd sample)
                                             let infinity = (read "Infinity")::Double
                                             let error' = if isNaN err then infinity else err
                                             let error'' = if error' > err1 then error' +9999 else error'
