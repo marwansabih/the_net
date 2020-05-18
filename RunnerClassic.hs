@@ -56,7 +56,7 @@ n_from_sample n (as,bs) = (take n as, take n bs)
 
 
 output_classic :: Net -> [Double] -> [Double]
-output_classic net input = softmax $ map(\(Node (a,_) _) -> a) layer
+output_classic net input = map(\(Node (a,_) _) -> a) layer --softmax $ map(\(Node (a,_) _) -> a) layer
                     where
                          r_net = reset net
                          f_net = f_propagate $set_input r_net input

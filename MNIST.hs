@@ -3,7 +3,8 @@ module MNIST
     render_mnist,
     draw_mnist_training_batch,
     draw_mnist_test,
-    mnist_set
+    mnist_set,
+    wrong_train_predictions
 )
 where
 
@@ -16,6 +17,11 @@ import           System.Random
 import           Data.List              (maximumBy)
 import           Data.Ord               (comparing)
 
+import           IMGNetwork
+import           Network
+import           RunnerClassic
+import           Types
+
 maxIndex :: Ord a => [a] -> Int
 maxIndex = fst . maximumBy (comparing snd) . zip [0..]
 
@@ -25,6 +31,27 @@ render_mnist :: ([[Double]] , [Double]) -> IO()
 render_mnist (img, nr) = do
                           putStr $ unlines $ map ( map render)  img
                           print $ maxIndex nr
+
+
+wrong_train_predictions :: Net -> IO [Int]
+wrong_train_predictions net = do
+                                            let xs = [0..59999]
+                                            predis <- sequence $ map (  correct_train_prediction_by_nr net) xs
+                                            return $ filter(\x -> not ( predis !! x )) xs
+
+correct_train_prediction_by_nr :: Net -> Int -> IO Bool
+correct_train_prediction_by_nr net n = do
+  s <- decompress <$> BS.readFile "mnist/train-images-idx3-ubyte.gz"
+  l <- decompress <$> BS.readFile "mnist/train-labels-idx1-ubyte.gz"
+  let img =  [(fromIntegral . BS.index s . (fromIntegral n*28^2 + 16 + r*28 +)) <$> [0..27] | r <- [0..27]]
+  let target = BS.index l (fromIntegral n + 8)
+  let one_hot = to_one_hot $ fromIntegral (   target )
+  let result = output_classic net (concat img)
+  putStrLn "Result: "
+  print (maxIndex result)
+  putStrLn "Target: "
+  print target
+  return  $ (maxIndex result) ==  fromIntegral target
 
 s' = decompress <$> BS.readFile "mnist/train-images-idx3-ubyte.gz"
 l' = decompress <$> BS.readFile "mnist/train-labels-idx1-ubyte.gz"
@@ -69,6 +96,7 @@ to_one_hot :: Double -> [Double]
 to_one_hot nr = xs ++ [1] ++ ys
                 where
                   (xs, y:ys) = splitAt (round  nr) $ replicate 10 0
+
 
 test :: IO()
 test = do
