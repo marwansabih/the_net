@@ -83,37 +83,38 @@ apply_softmax net = Net $ layers ++ [n_layer]
 b_propagate :: Net -> Net
 b_propagate (Net [])        = Net []
 b_propagate (Net ( a:l:[])) = Net $ (b_propagate_nodes a [l]):l:[]
-b_propagate (Net (x:layers)) = Net  $ (b_propagate_nodes x layers) : (app (b_propagate (Net layers)) )
-
+b_propagate (Net (x:layers)) = Net  $ (b_propagate_nodes x n_layers) : (app (b_propagate (Net layers)) )
+    where
+        n_layers = app (b_propagate (Net layers))
 
 b_propagate_nodes :: [Node] -> [[Node]] -> [Node]
 b_propagate_nodes [] _ = []
 b_propagate_nodes (x:nodes) layers = n_node :( b_propagate_nodes nodes layers)
-                                                where n_node = b_propagate_node x layers
+    where n_node = b_propagate_node x layers
 
 b_propagate_node :: Node -> [[Node]] -> Node
 b_propagate_node (Node x []) layers = mult_relu' (Node x [])
 b_propagate_node (Node (a,v) ((w,(l,n)):ts)) layers = b_propagate_node (Node (a, v + w*d ) ts) layers
-                                    where
-                                      (_,t:_) = splitAt l layers
-                                      (ks,(Node (_,d) _):ls) = splitAt n t
+    where
+        (_,t:_) = splitAt l layers
+        (ks,(Node (_,d) _):ls) = splitAt n t
 
 
 training_normed_batch_classic :: Net -> ([[Double]], [[Double]]) -> Double -> Net
 training_normed_batch_classic  net set s =  foldr (\(i,t) net -> add_w net (get_gradient_net i t s) ) net n_set
-                                                   where
-                                                       n_set = (\(x,y) -> zip x y) set
-                                                       add_up = zipWith(\(w1, x) (w2, _) -> (w1+w2,x))
-                                                       add_w = apply(\(Node (a,z) ts) (Node (a',d) ts') -> Node (a,z) (add_up ts ts') )
-                                                       get_gradient_net = get_normed_gradient_classic net
+    where
+        n_set = (\(x,y) -> zip x y) set
+        add_up = zipWith(\(w1, x) (w2, _) -> (w1+w2,x))
+        add_w = apply(\(Node (a,z) ts) (Node (a',d) ts') -> Node (a,z) (add_up ts ts') )
+        get_gradient_net = get_normed_gradient_classic net
 
 training_batch_classic :: Net -> ([[Double]], [[Double]]) -> Double -> Net
 training_batch_classic  net set s =  foldr (\(i,t) net -> add_w net (get_gradient_net i t s) ) net n_set
-                                                   where
-                                                       n_set = (\(x,y) -> zip x y) set
-                                                       add_up = zipWith(\(w1, x) (w2, _) -> (w1+w2,x))
-                                                       add_w = apply(\(Node (a,z) ts) (Node (a',d) ts') -> Node (a,z) (add_up ts ts') )
-                                                       get_gradient_net = get_gradient_classic net
+    where
+        n_set = (\(x,y) -> zip x y) set
+        add_up = zipWith(\(w1, x) (w2, _) -> (w1+w2,x))
+        add_w = apply(\(Node (a,z) ts) (Node (a',d) ts') -> Node (a,z) (add_up ts ts') )
+        get_gradient_net = get_gradient_classic net
 
 
 training_batch :: Net -> ([[Double]], [[Double]]) -> Double -> Net
@@ -184,9 +185,9 @@ update_weights_nodes   xs s layers = new_map (\x -> update_weights_node x s laye
 
 update_weights_node :: Node -> Double -> [[Node]] -> Node
 update_weights_node (Node (z',d) ts) s layers = Node (z',d) n_ts
-                                                                where
-                                                                    zs = new_map (\(_, (l,n)) -> find_z layers (l,n)) ts
-                                                                    n_ts = zipWith(\(w, t) z -> (w- (s*z'*z), t)) ts zs
+    where
+        zs = new_map (\(_, (l,n)) -> find_z layers (l,n)) ts
+        n_ts = zipWith(\(w, t) z -> (w- (s*z'*z), t)) ts zs
 
 
 get_gradient_f' ::  Net  -> Net
@@ -237,9 +238,9 @@ get_gradient_node (Node (z',d) ts) s layers = Node (z',d) n_ts
 
 find_z :: [[Node]] -> (Int,Int) -> Double
 find_z layers (l,n)  = z
-                            where
-                                (xs,t:ys) = splitAt l layers
-                                (ks,(Node (_,z) _):ls) = splitAt n t
+    where
+        (xs,t:ys) = splitAt l layers
+        (ks,(Node (_,z) _):ls) = splitAt n t
 
 
 get_random_batch :: Int -> ([[Double]],[[Double]])  -> IO ([[Double]],[[Double]])

@@ -16,13 +16,14 @@ import           Control.Monad
 import           Data.Time
 import           IMGNetwork
 import           Network
+import           System.IO
 import           Types
 
 training_normed_batches_classic :: Int -> Int -> Net -> ([[Double]],[[Double]]) -> Double -> IO Net
 training_normed_batches_classic nr_times bs net sample s = do
-                                                                                    let (short_design, simple_net) = net_to_simple_net net
-                                                                                    t_net <- training_normed_batches_classic' nr_times bs simple_net sample s
-                                                                                    return $ simple_net_to_net short_design t_net
+        let (short_design, simple_net) = net_to_simple_net net
+        t_net <- training_normed_batches_classic' nr_times bs simple_net sample s
+        return $ simple_net_to_net short_design t_net
 
 training_normed_batches_classic' :: Int -> Int -> Net -> ([[Double]],[[Double]]) -> Double -> IO Net
 training_normed_batches_classic' 0 _ net  _ _  = return net
@@ -30,7 +31,12 @@ training_normed_batches_classic' nr_times bs net sample s = do
                                                             (inp,out) <- get_random_batch bs sample
                                                             let net' = training_normed_batch_classic net sample (s / fromIntegral bs)
                                                             getCurrentTime >>= print
-                                                            print $ calculate_error net' $ n_from_sample 10 sample
+                                                            let (a,b,c) =  calculate_error net' $ n_from_sample 10 sample
+                                                            print $ (a,b,c)
+                                                            file <- openFile "error.log" AppendMode
+                                                            hSetBuffering file NoBuffering
+                                                            hPutStrLn file (show b ++"\n" )
+
                                                             print nr_times
                                                             training_normed_batches_classic' (nr_times-1) bs net' sample s
 
@@ -44,11 +50,14 @@ training_batches_classic nr_times bs net sample s = do
 training_batches_classic' :: Int -> Int -> Net -> ([[Double]],[[Double]]) -> Double -> IO Net
 training_batches_classic' 0 _ net  _ _  = return net
 training_batches_classic' nr_times bs net sample s = do
-                                                            (inp,out) <- get_random_batch bs sample
+                                                            --(inp,out) <- get_random_batch bs sample
                                                             let net' = training_batch_classic net sample (s / fromIntegral bs)
                                                             getCurrentTime >>= print
-                                                            print $ calculate_error net' $ sample
-                                                            print nr_times
+                                                            let (a,b,c) =  calculate_error net' $ n_from_sample 10 sample
+                                                            print $ (a,b,c)
+                                                            file <- openFile "error.log" AppendMode
+                                                            hSetBuffering file NoBuffering
+                                                            hPutStrLn file (show c )
                                                             training_batches_classic' (nr_times-1) bs net' sample s
 
 n_from_sample :: Int ->  ([[Double]],[[Double]]) -> ([[Double]],[[Double]])
@@ -62,11 +71,24 @@ output_classic net input = map(\(Node (a,_) _) -> a) layer --softmax $ map(\(Nod
                          f_net = f_propagate $set_input r_net input
                          layer =  last $ app f_net
 
-calculate_error :: Net ->  ([[Double]],[[Double]])   ->Double
-calculate_error net (inp,out) = (sum dist) / ( fromIntegral ( length out ))
+max_index :: [Double] -> Int
+max_index xs = max_index' xs (-infinity) 0 0
+        where
+                infinity = (read "Infinity") :: Double
+
+max_index' :: [Double] -> Double -> Int -> Int -> Int
+max_index' xs mVal idx  f_idx  | idx == length xs = f_idx
+max_index' xs mVal idx  f_idx  =
+        if  xs !! idx > mVal
+                then max_index' xs ( xs !! idx) (idx+1)  idx
+                else max_index' xs mVal (idx+1) f_idx
+--calculate_error :: Net ->  ([[Double]],[[Double]])   ->Double
+calculate_error net (inp,out) =  ((zip preds $ map max_index out) , (sum dist') / ( fromIntegral ( length out )), (sum dist) /( fromIntegral ( length out )) )
                                         where
-                                            preds = map (output_classic net) inp
-                                            dist = zipWith( \x y -> 1 - sum ( zipWith(\a b -> (a*b)) x y )) preds out
+                                            preds' =  map (output_classic net) inp
+                                            preds = map max_index preds'
+                                            dist' =zipWith (\x y -> if x == y then 1.0::Double else 0) preds ( map max_index out)
+                                            dist = zipWith( \x y -> 1 - sum ( zipWith(\a b -> (a*b)) x y )) (map softmax preds') out
 
 
 
@@ -167,6 +189,9 @@ compete_batch nr_trainings bs s net1 net2 sample  = do
                                                         (error2, n_net2) <- train_measure_quality nr_trainings bs s net2 sample
                                                         if (error1 < error2) then return (error1, n_net1) else return (error2, n_net2)
 
+
+train_measure_quality nr_trainings bs s net sample =undefined
+{-
 train_measure_quality :: Int -> Int -> Double -> Net -> ([[Double]], [[Double]]) -> IO (Double, Net)
 train_measure_quality nr_trainings bs s net sample =  do
                                             --let predi1 = map (output_classic net) $ fst sample
@@ -178,3 +203,4 @@ train_measure_quality nr_trainings bs s net sample =  do
                                             let error' = if isNaN err then infinity else err
                                             let error'' = if error' > err1 then error' +9999 else error'
                                             return (error'', n_net)
+-}

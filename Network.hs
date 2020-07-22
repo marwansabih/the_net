@@ -440,6 +440,8 @@ app2 (Net2 b) = b
 empty_net :: Int -> Int -> Net2 Double
 empty_net width depth = Net2 $ replicate depth  $  replicate width  ( Node2 0.0 [] )
 
+empty_net_with_design :: [Int] -> Net2 Double
+empty_net_with_design design  = Net2 $ map  (\x-> replicate x  ( Node2 0.0 [] )) design
 
 
 net_to_design :: Net -> Design
@@ -451,17 +453,20 @@ net_to_design  net = zipWith(\(Node _ ts) x -> (x,ts) ) (concat nodes) (concat i
                     fst_layer = zip (repeat 0) [0..m-1]
                     ids = fst_layer : ( new_map( \x -> zip (repeat x) [0..(m-2)] ) [1..(n-1)] )
 
-generate_fully_connected_net :: Int -> Int -> IO Net
-generate_fully_connected_net width depth =
-                                                do
-                                                    let net = empty_net width depth
-                                                    weights <- sequ $ map(sequ) $ replicate depth (replicate width (normal))
-                                                    let next_layers = replicate depth  $zip (repeat (0::Int)) [0..(width-1)]
-                                                    let cons =  map (replicate (width)) $ zipWith (zip) weights next_layers
-                                                    let n_net = Net2 $ zipWith(\c d -> zipWith( \(Node2 a _ ) b -> Node2 a b) c d) (app2 net) cons
-                                                    r_net <- add_bias n_net [(a,b)| a <-[1..(depth-1)], b <-[0..(width-1)]  ]
-                                                    let net' = convert_net2_net r_net
-                                                    change_out_net 1 net'
+generate_fully_connected_net :: [Int] -> IO Net
+generate_fully_connected_net  design =
+    do
+        let net = empty_net_with_design design
+        let weight_plan = zipWith(\x y -> replicate x y) design $ tail design
+        weights <-  sequ $ map ( sequ .  map ( sequ . (`replicate` normal) )) weight_plan
+        let c_nodes = zip (repeat (0::Int)) [(0::Int)..]
+        let cons = map (map (`zip` c_nodes)) weights
+        let n_net = Net2 $ (zipWith (zipWith ( \(Node2 a _ ) b -> Node2 a b) ) (app2 net) cons) ++ [last (app2 net)]
+        print $ convert_net2_net  n_net
+        let nodes = concatMap (\(a,b) -> zip (repeat a) [0..(b-1)] )  (zip [0..] design)
+        r_net <-  add_bias n_net nodes
+        return $ convert_net2_net r_net
+        --change_out_net 1 net'
 
 generate_random_net::  Int -> Int -> Int -> Int -> IO Net
 generate_random_net width depth nr_neuron nr_con =
@@ -893,3 +898,11 @@ test_net_to_net = do
     print net
     let (short_design, simple_net) =  net_to_simple_net net
     print $ simple_net_to_net short_design simple_net
+
+test_generate_fully_connected :: IO ()
+test_generate_fully_connected = do
+    let net2 = empty_net_with_design [3,10,10,10,10,10,1]
+    print $ convert_net2_net net2
+    net <- generate_fully_connected_net [3,10,10,1]
+    print $ app net
+    print net
