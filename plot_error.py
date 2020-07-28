@@ -11,9 +11,9 @@ def approx(steps,xs):
 
 f = open ("error.log" , "r")
 lines = f.read()
-li = (lines.split())[500:]
+li = (lines.split())#[500:]
 yss =  list( map ( lambda a : float (a), li ))
-ys = approx(100,yss)
+ys = approx(30,yss)
 xs = list( range (1, len(ys)+1))
 print (len (yss))
 fig, ax = plt.subplots()

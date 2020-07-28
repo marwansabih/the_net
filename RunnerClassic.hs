@@ -36,29 +36,28 @@ training_normed_batches_classic' nr_times bs net sample s = do
                                                             file <- openFile "error.log" AppendMode
                                                             hSetBuffering file NoBuffering
                                                             hPutStrLn file (show b ++"\n" )
-
                                                             print nr_times
                                                             training_normed_batches_classic' (nr_times-1) bs net' sample s
 
 
-training_batches_classic :: Int -> Int -> Net -> ([[Double]],[[Double]]) -> Double -> IO Net
-training_batches_classic nr_times bs net sample s = do
+training_batches_classic ::  Net -> [([[Double]],[[Double]])] -> Double -> IO Net
+training_batches_classic net samples s = do
+                                                                                    print "in batch"
                                                                                     let (short_design, simple_net) = net_to_simple_net net
-                                                                                    t_net <- training_batches_classic' nr_times bs simple_net sample s
+                                                                                    t_net <- training_batches_classic' simple_net samples s
                                                                                     return $ simple_net_to_net short_design t_net
 
-training_batches_classic' :: Int -> Int -> Net -> ([[Double]],[[Double]]) -> Double -> IO Net
-training_batches_classic' 0 _ net  _ _  = return net
-training_batches_classic' nr_times bs net sample s = do
-                                                            --(inp,out) <- get_random_batch bs sample
-                                                            let net' = training_batch_classic net sample (s / fromIntegral bs)
+training_batches_classic' ::  Net -> [([[Double]],[[Double]])] -> Double -> IO Net
+training_batches_classic'  net  [] _  = return net
+training_batches_classic' net (sample:xs) s = do
+                                                            let net' = training_batch_classic net sample (s / fromIntegral (length sample))
                                                             getCurrentTime >>= print
                                                             let (a,b,c) =  calculate_error net' $ n_from_sample 10 sample
                                                             print $ (a,b,c)
                                                             file <- openFile "error.log" AppendMode
                                                             hSetBuffering file NoBuffering
                                                             hPutStrLn file (show c )
-                                                            training_batches_classic' (nr_times-1) bs net' sample s
+                                                            training_batches_classic' net' xs s
 
 n_from_sample :: Int ->  ([[Double]],[[Double]]) -> ([[Double]],[[Double]])
 n_from_sample n (as,bs) = (take n as, take n bs)
@@ -93,114 +92,119 @@ calculate_error net (inp,out) =  ((zip preds $ map max_index out) , (sum dist') 
 
 
 
-find_best_random_net_classic :: Int -> Int -> Int -> Int -> Int -> Int -> Int  -> ([[Double]],[[Double]]) -> Double -> IO Net
-find_best_random_net_classic nr_nets training_steps bs width depth nr_neuron nr_con sample s =
+find_best_random_net_classic :: Int -> Int -> Int -> Int -> Int  -> [([[Double]],[[Double]])] -> Double -> IO Net
+find_best_random_net_classic nr_nets width depth nr_neuron nr_con sample s =
      do
          x <- generate_random_net width depth nr_neuron nr_con
          xs <- sequ $replicate (nr_nets-1) $ generate_random_net width depth nr_neuron nr_con
-         (err,b_net) <- foldM (\x y -> compete_batch training_steps bs s (snd x) y sample)  (0::Double,x) xs
+         (err,b_net) <- foldM (\x y -> compete_batch s (snd x) y sample)  (0::Double,x) xs
          print(err)
          time <-getCurrentTime
          print time
          return b_net
 
 
-
-update_random_net_con_classic :: Int ->Int -> Int -> Int  -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
-update_random_net_con_classic 0 _ _ _ _ net _ = return net
-update_random_net_con_classic nr_times nr_trainings bs nr_con sample net s = do
+{-
+update_random_net_con_classic :: Int  ->[([[Double]],[[Double]])] -> Net -> Double ->IO Net
+update_random_net_con_classic nr_con sample net s = do
                                                             time <-getCurrentTime
                                                             print time
-                                                            n_net <-  update_random_net_con' nr_trainings bs nr_con sample net s
-                                                            net' <- update_random_net_con_classic (nr_times-1) nr_trainings bs nr_con sample n_net s
+                                                            n_net <-  update_random_net_con' nr_con sample net s
+                                                            net' <- update_random_net_con_classic nr_con sample n_net s
+                                                            return net'
+                                                            -}
+
+
+update_del_net_con_classic ::  Int  -> [([[Double]],[[Double]])] -> Net -> Double ->IO Net
+update_del_net_con_classic  _ _ net _ = return net
+update_del_net_con_classic  nr_con sample net s = do
+                                                            time <-getCurrentTime
+                                                            print time
+                                                            n_net <-  update_del_net_con'  nr_con sample net s
+                                                            net' <- update_del_net_con_classic nr_con sample n_net s
+                                                            return net'
+
+update_add_net_con_classic ::  Int  -> [([[Double]],[[Double]])] -> Net -> Double ->IO Net
+update_add_net_con_classic _ _ net _ = return net
+update_add_net_con_classic nr_con sample net s = do
+                                                            time <-getCurrentTime
+                                                            print time
+                                                            n_net <-  update_add_net_con' nr_con sample net s
+                                                            net' <- update_add_net_con_classic nr_con sample n_net s
                                                             return net'
 
 
-update_del_net_con_classic :: Int ->Int -> Int -> Int  -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
-update_del_net_con_classic 0 _ _ _ _ net _ = return net
-update_del_net_con_classic nr_times nr_trainings bs nr_con sample net s = do
+update_add_del_net_con_classic :: Int  -> [([[Double]],[[Double]])] -> Net -> Double ->IO Net
+update_add_del_net_con_classic _ _ net _ = return net
+update_add_del_net_con_classic nr_con sample net s = do
                                                             time <-getCurrentTime
                                                             print time
-                                                            n_net <-  update_del_net_con' nr_trainings bs nr_con sample net s
-                                                            net' <- update_del_net_con_classic (nr_times-1) nr_trainings bs nr_con sample n_net s
+                                                            n_net' <-  update_del_net_con' nr_con sample net s
+                                                            n_net <-  update_add_net_con' nr_con sample n_net' s
+                                                            net' <- update_add_del_net_con_classic nr_con sample n_net s
                                                             return net'
 
-update_add_net_con_classic :: Int ->Int -> Int -> Int  -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
-update_add_net_con_classic 0 _ _ _ _ net _ = return net
-update_add_net_con_classic nr_times nr_trainings bs nr_con sample net s = do
-                                                            time <-getCurrentTime
-                                                            print time
-                                                            n_net <-  update_add_net_con' nr_trainings bs nr_con sample net s
-                                                            net' <- update_add_net_con_classic (nr_times-1) nr_trainings bs nr_con sample n_net s
-                                                            return net'
-
-
-update_add_del_net_con_classic :: Int ->Int -> Int -> Int  -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
-update_add_del_net_con_classic 0 _ _ _ _ net _ = return net
-update_add_del_net_con_classic nr_times nr_trainings bs nr_con sample net s = do
-                                                            time <-getCurrentTime
-                                                            print time
-                                                            n_net' <-  update_del_net_con' nr_trainings bs nr_con sample net s
-                                                            n_net <-  update_add_net_con' nr_trainings bs nr_con sample n_net' s
-                                                            net' <- update_add_del_net_con_classic (nr_times-1) nr_trainings bs nr_con sample n_net s
-                                                            return net'
-
-update_del_net_con' :: Int -> Int  -> Int -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
-update_del_net_con' nr_trainings bs nr_con sample net s  = do
+update_del_net_con' :: Int -> [([[Double]],[[Double]])] -> Net -> Double ->IO Net
+update_del_net_con' nr_con sample net s  = do
                                                               (net1,net2) <- removing_connections nr_con net
-                                                              (error', net') <- compete_batch nr_trainings bs s net1 net2 sample
+                                                              (error', net') <- compete_batch s net1 net2 sample
                                                               print error'
                                                               return net'
 
 
-update_add_net_con' :: Int -> Int  -> Int -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
-update_add_net_con' nr_trainings bs nr_con sample net s  = do
+update_add_net_con' :: Int  -> [([[Double]],[[Double]])] -> Net -> Double ->IO Net
+update_add_net_con' nr_con sample net s  = do
                                                               (net1,net2) <- adding_connections nr_con net
-                                                              (error', net') <- compete_batch nr_trainings bs s net1 net2 sample
+                                                              (error', net') <- compete_batch s net1 net2 sample
                                                               print error'
                                                               return net'
 
-update_random_net_con' :: Int -> Int  -> Int -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
-update_random_net_con' nr_trainings bs nr_con sample net s  = do
-                                                              (net1,net2) <- alter_connections nr_con net
-                                                              (error', net') <- compete_batch nr_trainings bs s net1 net2 sample
+update_random_net_con_classic :: Int -> [([[Double]],[[Double]])] -> Net -> Double ->IO Net
+update_random_net_con_classic nr_con sample net s  = do
+                                                              let (short_design, simple_net) = net_to_simple_net net
+                                                              (net1',net2') <- alter_connections nr_con simple_net
+                                                              let net1 = simple_net_to_net short_design net1'
+                                                              let net2 = simple_net_to_net short_design net2'
+                                                              --(net1,net2) <- alter_connections nr_con net
+                                                              (error', net') <- compete_batch s net1 net2 sample
                                                               print error'
                                                               return net'
 
-update_random_net_classic :: Int -> Int ->Int -> Int -> Int -> Int -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
-update_random_net_classic _  0 _ _ _ _ _ net _ = return net
-update_random_net_classic img_width nr_times nr_trainings bs nr_alt_neuron nr_con sample net s = do
+update_random_net_classic ::  Int -> Int -> Int -> [([[Double]],[[Double]])] -> Net -> Double ->IO Net
+update_random_net_classic _ _ _ [] net _ = return net
+update_random_net_classic img_width nr_alt_neuron nr_con sample net s = do
                                                             time <-getCurrentTime
                                                             print time
-                                                            n_net <-  update_random_net'  img_width nr_trainings bs nr_alt_neuron nr_con sample net s
-                                                            net' <- update_random_net_classic img_width (nr_times-1) nr_trainings bs nr_alt_neuron nr_con sample n_net s
-                                                            return net'
+                                                            n_net <-  update_random_net'  img_width nr_alt_neuron nr_con sample net s
+                                                            --net' <- update_random_net_classic img_width nr_alt_neuron nr_con sample n_net s
+                                                            return n_net
 
-update_random_net' :: Int -> Int -> Int -> Int -> Int -> ([[Double]],[[Double]]) -> Net -> Double ->IO Net
-update_random_net' img_width nr_trainings bs nr_alt_neuron nr_con sample net s  = do
+update_random_net' :: Int  -> Int -> Int -> [([[Double]],[[Double]])] -> Net -> Double ->IO Net
+update_random_net' img_width nr_alt_neuron nr_con sample net s  = do
                                                               (net1,net2) <- alter_img_neurons img_width nr_alt_neuron nr_con net
-                                                              (error', net') <- compete_batch nr_trainings bs s net1 net2 sample
+                                                              (error', net') <- compete_batch s net1 net2 sample
                                                               print error'
                                                               return net'
 
-compete_batch :: Int -> Int  -> Double -> Net -> Net -> ([[Double]],[[Double]]) -> IO (Double, Net)
-compete_batch nr_trainings bs s net1 net2 sample  = do
-                                                        (error1, n_net1) <- train_measure_quality nr_trainings bs s net1 sample
-                                                        (error2, n_net2) <- train_measure_quality nr_trainings bs s net2 sample
+compete_batch :: Double -> Net -> Net -> [([[Double]],[[Double]])] -> IO (Double, Net)
+compete_batch s net1 net2 sample  = do
+                                                        (error1, n_net1) <- train_measure_quality s net1 sample
+                                                        putStrLn $ "Error original: " ++ (show error1)
+                                                        (error2, n_net2) <- train_measure_quality s net2 sample
+                                                        putStrLn $ "Error original: " ++ (show error2)
                                                         if (error1 < error2) then return (error1, n_net1) else return (error2, n_net2)
 
 
-train_measure_quality nr_trainings bs s net sample =undefined
-{-
-train_measure_quality :: Int -> Int -> Double -> Net -> ([[Double]], [[Double]]) -> IO (Double, Net)
-train_measure_quality nr_trainings bs s net sample =  do
+--train_measure_quality nr_trainings bs s net sample =undefined
+
+train_measure_quality :: Double -> Net -> [([[Double]], [[Double]])] -> IO (Double, Net)
+train_measure_quality s net sample =  do
                                             --let predi1 = map (output_classic net) $ fst sample
-                                            let err1 = calculate_error net sample
-                                            n_net <- training_batches_classic nr_trainings bs net sample s
+                                            let (a,b,err1) = calculate_error net (head sample)
+                                            n_net <- training_batches_classic net sample s
                                             --let predi = map (output_classic n_net) $ fst sample
-                                            let err =  calculate_error n_net sample--1/fromIntegral (length (snd sample)) $ sum $ zipWith (\a b -> 1 - (sum  $(zipWith( \x y -> x*y) a b))) predi (snd sample)
+                                            let (a,b,err) =  calculate_error n_net (head sample) --1/fromIntegral (length (snd sample)) $ sum $ zipWith (\a b -> 1 - (sum  $(zipWith( \x y -> x*y) a b))) predi (snd sample)
                                             let infinity = (read "Infinity")::Double
                                             let error' = if isNaN err then infinity else err
                                             let error'' = if error' > err1 then error' +9999 else error'
                                             return (error'', n_net)
--}

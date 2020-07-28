@@ -83,7 +83,7 @@ reset_con_weights ((pos, entry):xs) design = do
 
 
 add_connections :: Int -> Design -> IO Design
-add_connections nr_cons design = foldM (\x y -> add_connection x) design [1..nr_cons]
+add_connections nr_cons design = foldM (\x y -> add_connection x) design (replicate nr_cons 1)
 
 
 add_connection ::Design -> IO Design
