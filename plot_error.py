@@ -1,6 +1,7 @@
 import matplotlib 
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
 
 def approx(steps,xs):
   ys = []
@@ -11,9 +12,10 @@ def approx(steps,xs):
 
 f = open ("error.log" , "r")
 lines = f.read()
-li = (lines.split())#[500:]
+li = (lines.split())#[100:]
 yss =  list( map ( lambda a : float (a), li ))
-ys = approx(30,yss)
+n = int ( sys.argv[1])
+ys = approx(n,yss)
 xs = list( range (1, len(ys)+1))
 print (len (yss))
 fig, ax = plt.subplots()

@@ -6,6 +6,7 @@ import           Control.Parallel.Strategies
 import           Data.List
 import           Data.List.Split
 import           Data.Time
+import           Data.Time.Clock             (diffUTCTime, getCurrentTime)
 import           Network
 import           System.Random
 import           Types
@@ -13,12 +14,13 @@ import           Types
 --ghc -O2 -optc-O3  -threaded -optc-ffast-math -fexcess-precision -funfolding-use-threshold=16 -o main.o the_net.hs  -fprof-auto  -fprof-cafs -fforce-recomp
 --main.hs +RTS -N4 eventuell bringt threaded so gut wie gar nichts....
 
-new_map = parMap rpar
+new_map f  xs = map f xs `using` parListChunk 200 rseq --parMap rpar
 
 softmax :: [Double] -> [Double]
 softmax xs = map (1/norm*) e_xs
                 where
-                   e_xs = new_map exp xs
+                   x_max = maximum xs
+                   e_xs = new_map (\x -> exp (x-x_max)) xs
                    norm = sum e_xs
 
 
@@ -277,14 +279,25 @@ test_multiply_weigths = do
 test_get_gradient_classic :: IO()
 test_get_gradient_classic = do
     let net = Net [ [Node (0,0) [(1,(0,0))], Node (1,0) [(1,(0,1))]], [Node (0,0) [(1,(0,0))], Node (0,0) [(1,(0,1))]], [Node (0,0) [], Node (0,0) [] ] ]
+    let start = [ [Node (0,0) [(1,(0,0))], Node (1,0) [(1,(0,1))]]]
+    let ls = replicate 1000000 [Node (0,0) [(1,(0,0))], Node (0,0) [(1,(0,1))]]
+    let end = [[Node (0,0) [], Node (0,0) [] ]]
+    let net = Net $ start ++ ls ++ end
+    getCurrentTime >>= print
+    --print $ app net
     let net' = set_input net [1,1]
+    --print $ app net'
     let f_net = f_propagate net'
-    print $ app f_net
+    --print $ app f_net
     let net'' = reset' $ apply_softmax f_net
     let b_net = b_propagate $ set_last_deltas [0,1] net''
     let c_net = apply (\(Node (a,z) ts) (Node (a',d) ts') -> Node (z,d) ts) f_net b_net
-    print $ app b_net
-    print $ app c_net
+    --print $ app b_net
+    --print $ app c_net
     let n_net = get_gradient_classic net [1,1] [0,1] 1
-    print $ app n_net
+    print $ last $ app n_net
+    getCurrentTime >>= print
     print "hi"
+
+--main :: IO ()
+--main = test_get_gradient_classic
