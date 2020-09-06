@@ -17,4 +17,4 @@ RUN apt-get update && apt-get install -y libatomic1
 RUN mkdir /usr/src/run
 COPY --from=build /usr/src/app /usr/src/run
 WORKDIR /usr/src/run
-CMD ["/usr/src/run/main.out"]
+ENTRYPOINT ["/bin/bash", "-c", "/usr/src/run/main.out \"$@\""]

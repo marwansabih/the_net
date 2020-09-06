@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker run --rm -it thenet
+docker run --ulimit nofile=100000:100000 --rm -it thenet -- save
