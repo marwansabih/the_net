@@ -199,7 +199,7 @@ main = do
           --random_net <- generate_save/image_net 28 28 5 10 1000 100
           --random_net <- generate_fully_connected_net [28*28,25,25,10]
           let filepath = path ++ "image_net"
-          random_net <- generate_image_net filepath 28 28 100 10 1000 100
+          random_net <- generate_image_net 28 28 100 10 1000 100
           --random_net <- load_net filepath
           --find_best_random_net_classic nr_nets training_steps bs height width depth nr_neuron nr_con sample s
           --random_net <- find_best_random_net_classic 50 100
