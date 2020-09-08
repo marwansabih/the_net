@@ -1,0 +1,6 @@
+Height 28
+Width 28
+Layers 50
+Classes 10
+Neurons 1000
+Connections 500

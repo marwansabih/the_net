@@ -1,0 +1,9 @@
+Height 28
+Width 28
+Layers 100
+Classes 10
+Neurons 500
+Connections 500
+SavingIntervall 100
+Batchsize 10
+LearningRate 1.0e-4

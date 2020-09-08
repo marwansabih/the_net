@@ -1,5 +1,6 @@
 import           Backpropagation
 import           Data
+import           Data.List
 import           Data.Time.Clock    (diffUTCTime, getCurrentTime)
 import           Graphprinter
 import           IMGNetwork
@@ -7,17 +8,17 @@ import           Memory
 import           MNIST
 import           Network
 --import           Runner
+import           Config
 import           Control.Monad
 import           Data.List
 import           RunnerClassic
+import           System.Directory
 import           System.Environment
 import           System.Random
 import           Types
 
 --ghc -O2 -optc-O3 -optc-ffast-math -o main.out main.hs -fprof-auto  -fprof-cafs -fforce-recomp
 --ghc -O2 -optc-O3  -threaded -fexcess-precision -funfolding-use-threshold=0 -o main.out main.hs -fforce-recomp -rtsopts
-
-
 
 -- training_batches nr_times bs net sample s
 -- find_best_fully_connected_net nr_nets training_steps bs width depth sample s
@@ -39,22 +40,22 @@ import           Types
 
 --output_graph node_radius filename net
 
-batchSize = 10
-steps = 300
+defaultConfig = "image_net_28_28_100_10_100_100"
 
-defaultPath = "save/"
-
-path = do
+config :: IO Config
+config = do
   a <- getArgs;
   if a == [] then
     do
-      putStrLn $ "Saving in default path: " ++ defaultPath
-      return defaultPath
+      conf <- readConfig defaultConfig
+      putStrLn $ "DefaultConfig path: " ++ path conf
+      return conf
   else
     do
-      let path = a !! 0
-      putStrLn $ "Saving in path: " ++ path ++ "/"
-      return $ path ++ "/"
+      conf <- readConfig (a !! 0)
+      putStrLn $ "Config path: " ++ (path conf)
+      return conf
+
 
 draw_sample_ids :: Int -> Int -> [Int] -> Net -> IO ([Int],[[Int]])
 draw_sample_ids nr bs ids net = draw_sample_ids' nr bs ids ([],[]) net
@@ -128,6 +129,8 @@ update_and_save_image [] _ _  net _ = return net
 update_and_save_image ids times filename  net s = do
                                                                --set <- if (odd times) then draw_mnist_training_batch 10
                                                               --                                 else draw_wrong_mnist_training_batch nr 10
+                                                               steps <- steps <$> config
+                                                               batchSize <- batchSize <$> config
                                                                (set, ids') <- draw_sample_ids_ steps batchSize ids net
                                                                sample <- mapDraw ids'
                                                                --let sample = map format sample'
@@ -149,18 +152,16 @@ run_and_save_image [] _ _ _  net _ = return net
 run_and_save_image ids times filename f  net s = do
                                                                --set <- if (odd times) then draw_mnist_training_batch 10
                                                               --                                 else draw_wrong_mnist_training_batch nr 10
+                                                              steps <- steps <$> config
+                                                              batchSize <- batchSize <$> config
                                                               (set, ids') <- draw_sample_ids steps batchSize ids net
                                                               sample <- mapDraw2 ids'
-                                                              --set <- mnist_set
                                                               print "start training"
                                                               net' <- f  net sample s
                                                               print "start saving"
                                                               if mod times 2 == 0
                                                                 then save_net (filename) net'
-                                                                else save_net (filename ++ "2") net'
-                                                               --if ( (times < 1000) && (mod times 100 == 0) )
-                                                               --   then save_net filename net
-                                                               --   else print "not saving"
+                                                                else save_net (filename ++ "_2") net'
                                                               print $ (times+1) * 1000
                                                               run_and_save_image  set (times + 1) filename f net' s
 
@@ -192,39 +193,39 @@ format' ((a,b):xs) (as,bs) =format' xs  ( ( map ((1.0/255.0)*) (concat a) ) :as,
 
 axs = [0..59999]
 
+netExists :: IO Config -> IO Bool
+netExists config = do
+  path <- path <$> config
+  dirs <- listDirectory path
+  let nets = filter(\x -> isPrefixOf "image_net" x) dirs
+  return $ length nets > 0
+
+readOrCreateNet config = do
+  width <- imgWidth <$> config
+  height <- imgHeight <$> config
+  layers <- nrLayers <$> config
+  classes <- nrClasses <$> config
+  neurons <- nrNeurons <$> config
+  cons <- nrCons <$> config
+  file <- filepath <$> config
+  exists <- netExists config
+  if exists
+    then load_net  file
+    else generate_image_net width height layers classes neurons cons
+
+
+
 main::IO()
 main = do
           getCurrentTime >>= print
-          path <- path
-          --random_net <- generate_save/image_net 28 28 5 10 1000 100
-          --random_net <- generate_fully_connected_net [28*28,25,25,10]
-          let filepath = path ++ "image_net"
-          random_net <- generate_image_net 28 28 100 10 1000 100
-          --random_net <- load_net filepath
-          --find_best_random_net_classic nr_nets training_steps bs height width depth nr_neuron nr_con sample s
-          --random_net <- find_best_random_net_classic 50 100
-          --save_net "save/image_net_500_fresh" random_net
-          --getCurrentTime >>= print
-          --(net1, net2) <- alter_connections 10 random_net
-          --analyse_network net1
-          --analyse_network net2
-          --analyse_network random_net
-          --wrong_train_predictions_ [0..59999] random_net >>= print
-          --print $ length test_error_2
-          --wrong_test_predictionss random_net -- >>= print
-          -- update_random_net_con nr_times nr_trainings bs nr_con sample net s
-          -- update_random_net_con_classic nr_times nr_trainings bs nr_con sample net s
-          --let f x y = training_batches_classic 1 3 y x
-          --let f x y = training_normed_batches_classic 3 2 y x
-          --let f = update_random_net_con_classic 1 100 2 10
-          --trained_random_net <- update_and_save_image [0..59999] 0 "save/image_net"  random_net  0.001
-          --random_net <- run_and_save_image [1,2,3,4] 0 "save/image_net" training_batches_classic  random_net  0.001
+          file <- filepath <$> config
+          random_net <- readOrCreateNet config
+          s <- learningRate <$> config
+          random_net <- run_and_save_image axs 0 file training_batches_classic  random_net  s
           --random_net <- run_and_save_image hs 0 "save/image_net" training_batches_classic  random_net  0.001
-          random_net <- run_and_save_image axs 0 filepath training_batches_classic  random_net  0.0001
+          random_net <- run_and_save_image axs 0 file  training_batches_classic  random_net  s
           --random_net <- run_and_save_image hs 0 "save/image_net" training_batches_classic  random_net  0.001
-          random_net <- run_and_save_image axs 0 filepath  training_batches_classic  random_net  0.0001
-          --random_net <- run_and_save_image hs 0 "save/image_net" training_batches_classic  random_net  0.001
-          random_net <- run_and_save_image axs 0 filepath  training_batches_classic  random_net  0.0001
+          random_net <- run_and_save_image axs 0 file  training_batches_classic  random_net  s
           --random_net <- run_and_save_image hs 0 "save/image_net" training_batches_classic  random_net  0.001
           --random_net <- run_and_save_image axs 0 "save/image_net" training_batches_classic  random_net  0.001
           --trained_random_net <- run_and_save_image xs 0 "save/image_net" training_batches_classic  random_net  0.001
