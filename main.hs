@@ -147,17 +147,21 @@ update_and_save_image ids times filename  net s = do
                                                                print $ (times +1 ) * 1000
                                                                update_and_save_image  set (times + 1) filename net' s
 
-run_and_save_image :: [Int] -> Int -> String -> ( Net -> [[([Double],[Double])]]  -> Double ->IO Net) -> Net -> Double -> IO Net
+run_and_save_image :: [Int] -> Int -> String -> ( Net -> [[([Double],[Double])]]  -> String -> Double ->IO Net) -> Net -> Double -> IO Net
 run_and_save_image [] _ _ _  net _ = return net
 run_and_save_image ids times filename f  net s = do
                                                                --set <- if (odd times) then draw_mnist_training_batch 10
                                                               --                                 else draw_wrong_mnist_training_batch nr 10
+
                                                               steps <- steps <$> config
                                                               batchSize <- batchSize <$> config
+                                                              s <- learningRate <$> config
+                                                              path <- path <$> config
+                                                              print s
                                                               (set, ids') <- draw_sample_ids steps batchSize ids net
                                                               sample <- mapDraw2 ids'
                                                               print "start training"
-                                                              net' <- f  net sample s
+                                                              net' <- f  net sample (path ++ "/error.log") s
                                                               print "start saving"
                                                               if mod times 2 == 0
                                                                 then save_net (filename) net'

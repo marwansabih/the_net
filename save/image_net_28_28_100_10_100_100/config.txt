@@ -6,4 +6,4 @@ Neurons 100
 Connections 100
 SavingIntervall 100
 Batchsize 10
-LearningRate 1.0e-4
+LearningRate 1.0e-8

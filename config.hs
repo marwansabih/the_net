@@ -22,7 +22,7 @@ data Config = Config { path                       :: String
                                     ,learningRate :: Double
 } deriving Show
 
-generateConfig :: IO Config
+generateConfig :: IO ()
 generateConfig = do
   height <- readInt "Image Height: "
   width <- readInt  "Image Width: "
@@ -40,7 +40,7 @@ generateConfig = do
   createDirectory path
   let config = Config path filename filepath height width layers classes nrNeurons nrCons steps batchSize learningRate
   writeConfig config
-  return config
+  print config
 
 readInt :: String -> IO Int
 readInt prompt = do

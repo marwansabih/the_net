@@ -162,12 +162,12 @@ training_normed_batches_classic' nr_times bs net sample s = do
                                                             training_normed_batches_classic' (nr_times-1) bs net' sample s
 
 
-training_batches_classic ::  Net ->[[([Double],[Double])]] -> Double -> IO Net
-training_batches_classic net samples s = do
+training_batches_classic ::  Net ->[[([Double],[Double])]] -> String ->Double -> IO Net
+training_batches_classic net samples filepath s = do
                                                                                     print "in batch"
                                                                                     let (short_design, simple_net) = net_to_simple_net net
                                                                                     fnet <- netFromList $ toFastNet simple_net
-                                                                                    training_batches_classic'' fnet samples s
+                                                                                    training_batches_classic'' fnet samples filepath s
                                                                                     --t_net <- training_batches_classic'' net samples s
                                                                                     t_net <- fromFastNet <$> ( netToList fnet)
                                                                                     return $ simple_net_to_net short_design t_net
@@ -188,9 +188,9 @@ training_batches_classic' net (sample:xs) s = do
 
 --}
 
-training_batches_classic'' ::  FNet -> [[([Double],[Double])]] -> Double -> IO ()
-training_batches_classic''  net  [] _  = return ()
-training_batches_classic'' fnet (sample:xs) s = do
+training_batches_classic'' ::  FNet -> [[([Double],[Double])]] -> String-> Double -> IO ()
+training_batches_classic''  net  [] _ _ = return ()
+training_batches_classic'' fnet (sample:xs) filepath s = do
                                                             --fnet <- netFromList $ toFastNet net
                                                             netList <-netToList fnet
                                                             sample' <- format <$> draw_mnist_training_batch 10
@@ -209,16 +209,16 @@ training_batches_classic'' fnet (sample:xs) s = do
                                                                    then
                                                                      do
                                                                             print $ (a,b,c)
-                                                                            file <- openFile "error.log" AppendMode
+                                                                            file <- openFile filepath AppendMode
                                                                             hSetBuffering file NoBuffering
                                                                             hPutStrLn file (show c )
                                                                             --net' <- fromFastNet <$> ( netToList fnet)
-                                                                            training_batches_classic'' fnet xs s
+                                                                            training_batches_classic'' fnet xs  filepath s
                                                                    else
                                                                      do
                                                                            print "unsuccesful"
                                                                            fnet <- netFromList $ netList
-                                                                           training_batches_classic'' fnet xs s
+                                                                           training_batches_classic'' fnet xs filepath s
 
 n_from_sample :: Int ->  ([[Double]],[[Double]]) -> ([[Double]],[[Double]])
 n_from_sample n (as,bs) = (take n as, take n bs)
